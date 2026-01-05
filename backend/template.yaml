@@ -44,6 +44,12 @@ Parameters:
     Default: ""
     Description: API Key for Market Data service (Twelve Data or Alpha Vantage API key, required for real data)
     NoEcho: true
+  
+  FredApiKey:
+    Type: String
+    Default: ""
+    Description: API Key for FRED (Federal Reserve Economic Data) - Free at https://fred.stlouisfed.org/docs/api/api_key.html - Required for DXY and bonds
+    NoEcho: true
 
 Resources:
   TradingAssistantAPI:
@@ -62,6 +68,7 @@ Resources:
           ECONOMIC_CALENDAR_API_URL: https://api.tradingeconomics.com/calendar
           MARKET_DATA_PROVIDER: !Ref MarketDataProvider
           MARKET_DATA_API_KEY: !Ref MarketDataApiKey
+          FRED_API_KEY: !Ref FredApiKey
           DEFAULT_CURRENCY: USD
           LOG_LEVEL: INFO
           STAGE: !Ref Stage

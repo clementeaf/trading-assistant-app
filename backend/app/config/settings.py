@@ -66,6 +66,12 @@ class Settings(BaseSettings):
         description="URL base de la API de datos de mercado (opcional)"
     )
     
+    # FRED API para DXY y bonos (Federal Reserve Economic Data)
+    fred_api_key: Optional[str] = Field(
+        default=None,
+        description="API key para FRED (gratis en https://fred.stlouisfed.org/docs/api/api_key.html)"
+    )
+    
     class Config:
         """Configuración de Pydantic"""
         env_file = ".env"

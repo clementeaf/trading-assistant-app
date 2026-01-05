@@ -12,6 +12,7 @@ from app.models.market_alignment import MarketAlignmentAnalysis
 from app.providers.market_data.base_market_provider import MarketDataProvider
 from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
+from app.providers.market_data.fred_provider import FredProvider
 from app.utils.alignment_analyzer import AlignmentAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -83,36 +84,36 @@ class MarketAlignmentService:
         dxy_day_before_start = datetime.combine(day_before, datetime.min.time())
         dxy_day_before_end = datetime.combine(day_before, datetime.max.time())
         
-        # DXY y bonos no están disponibles en Twelve Data
-        # Intentar obtener datos reales, si falla, lanzar error
+        # DXY y bonos: intentar con FRED primero (especializado), luego con el proveedor principal
+        dxy_provider = self._get_dxy_bond_provider()
+        bond_provider = self._get_dxy_bond_provider()
+        
         try:
-            dxy_yesterday_candles = await self.provider.fetch_historical_candles(
+            dxy_yesterday_candles = await dxy_provider.fetch_historical_candles(
                 "DXY", dxy_yesterday_start, dxy_yesterday_end, "1h"
             )
-            dxy_day_before_candles = await self.provider.fetch_historical_candles(
+            dxy_day_before_candles = await dxy_provider.fetch_historical_candles(
                 "DXY", dxy_day_before_start, dxy_day_before_end, "1h"
             )
         except (ValueError, Exception) as e:
-            logger.error(f"Provider does not support DXY: {str(e)}")
+            logger.error(f"Could not fetch DXY data: {str(e)}")
             raise ValueError(
-                f"DXY data is not available from the configured market data provider. "
-                f"Current provider ({self.settings.market_data_provider}) does not support DXY. "
-                "Please use a provider that supports DXY or configure a different data source."
+                f"DXY data is not available. "
+                "Please configure FRED_API_KEY for DXY data (free at https://fred.stlouisfed.org/docs/api/api_key.html)."
             )
         
         try:
-            bond_yesterday_candles = await self.provider.fetch_historical_candles(
+            bond_yesterday_candles = await bond_provider.fetch_historical_candles(
                 bond_symbol, dxy_yesterday_start, dxy_yesterday_end, "1h"
             )
-            bond_day_before_candles = await self.provider.fetch_historical_candles(
+            bond_day_before_candles = await bond_provider.fetch_historical_candles(
                 bond_symbol, dxy_day_before_start, dxy_day_before_end, "1h"
             )
         except (ValueError, Exception) as e:
-            logger.error(f"Provider does not support {bond_symbol}: {str(e)}")
+            logger.error(f"Could not fetch {bond_symbol} data: {str(e)}")
             raise ValueError(
-                f"{bond_symbol} data is not available from the configured market data provider. "
-                f"Current provider ({self.settings.market_data_provider}) does not support {bond_symbol}. "
-                "Please use a provider that supports bonds or configure a different data source."
+                f"{bond_symbol} data is not available. "
+                "Please configure FRED_API_KEY for bond data (free at https://fred.stlouisfed.org/docs/api/api_key.html)."
             )
         
         if not dxy_yesterday_candles or not dxy_day_before_candles:
@@ -143,4 +144,22 @@ class MarketAlignmentService:
         )
         
         return analysis
+    
+    def _get_dxy_bond_provider(self) -> MarketDataProvider:
+        """
+        Obtiene el proveedor adecuado para DXY y bonos
+        Prioriza FRED (especializado), luego el proveedor principal
+        @returns Proveedor de datos de mercado
+        """
+        # FRED es especializado en DXY y bonos, tiene prioridad
+        if self.settings.fred_api_key:
+            logger.info("Using FRED provider for DXY and bonds")
+            return FredProvider(api_key=self.settings.fred_api_key)
+        
+        # Si no hay FRED, intentar con el proveedor principal
+        logger.warning(
+            "FRED_API_KEY not configured. Attempting to use main provider for DXY/bonds. "
+            "This may not work for all providers. Consider configuring FRED_API_KEY."
+        )
+        return self.provider
 
