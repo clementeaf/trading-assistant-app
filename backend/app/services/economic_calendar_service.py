@@ -1,13 +1,17 @@
 """
 Servicio para obtener y filtrar eventos del calendario económico
 """
-from datetime import date, datetime
+import logging
+from datetime import date
 from typing import Optional
-
-import httpx
 
 from app.config.settings import Settings
 from app.models.economic_calendar import EconomicEvent, HighImpactNewsResponse, ImpactLevel
+from app.providers.base_provider import EconomicCalendarProvider
+from app.providers.mock_provider import MockProvider
+from app.providers.tradingeconomics_provider import TradingEconomicsProvider
+
+logger = logging.getLogger(__name__)
 
 
 class EconomicCalendarService:
@@ -19,8 +23,36 @@ class EconomicCalendarService:
         @param settings - Configuración de la aplicación
         """
         self.settings = settings
-        self.api_key = settings.economic_calendar_api_key
-        self.api_url = settings.economic_calendar_api_url
+        self.provider = self._create_provider(settings)
+    
+    def _create_provider(self, settings: Settings) -> EconomicCalendarProvider:
+        """
+        Crea el proveedor de calendario económico según la configuración
+        @param settings - Configuración de la aplicación
+        @returns Instancia del proveedor
+        """
+        provider_name = settings.economic_calendar_provider.lower()
+        
+        if provider_name == "tradingeconomics":
+            if not settings.economic_calendar_api_key:
+                logger.warning(
+                    "TradingEconomics provider selected but no API key configured. "
+                    "Falling back to mock provider."
+                )
+                return MockProvider()
+            
+            return TradingEconomicsProvider(
+                api_key=settings.economic_calendar_api_key,
+                api_url=settings.economic_calendar_api_url
+            )
+        elif provider_name == "mock":
+            logger.info("Using mock provider for economic calendar")
+            return MockProvider()
+        else:
+            logger.warning(
+                f"Unknown provider '{provider_name}'. Using mock provider."
+            )
+            return MockProvider()
     
     async def get_high_impact_news_today(
         self,
@@ -34,12 +66,24 @@ class EconomicCalendarService:
         today = date.today()
         target_currency = currency or self.settings.default_currency
         
-        events = await self._fetch_events_for_date(today, target_currency)
+        logger.info(
+            f"Fetching high impact news for {today} with currency {target_currency}"
+        )
+        
+        events = await self.provider.fetch_events(today, target_currency)
+        
+        if not events:
+            logger.warning(f"No events found for {today}")
         
         high_impact_events = [
             event for event in events
             if event.importance == ImpactLevel.HIGH
         ]
+        
+        logger.info(
+            f"Found {len(high_impact_events)} high impact events out of "
+            f"{len(events)} total events"
+        )
         
         has_news = len(high_impact_events) > 0
         summary = self._generate_summary(high_impact_events)
@@ -50,110 +94,6 @@ class EconomicCalendarService:
             events=high_impact_events,
             summary=summary
         )
-    
-    async def _fetch_events_for_date(
-        self,
-        target_date: date,
-        currency: Optional[str]
-    ) -> list[EconomicEvent]:
-        """
-        Obtiene eventos económicos para una fecha específica
-        @param target_date - Fecha objetivo
-        @param currency - Moneda para filtrar (opcional)
-        @returns Lista de eventos económicos
-        """
-        try:
-            params = {
-                "d1": target_date.isoformat(),
-                "d2": target_date.isoformat(),
-            }
-            
-            if currency:
-                params["c"] = currency
-            
-            if self.api_key:
-                params["key"] = self.api_key
-            
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(self.api_url, params=params)
-                response.raise_for_status()
-                data = response.json()
-                
-                return self._parse_events(data)
-        except httpx.HTTPError as e:
-            return self._get_mock_events_for_date(target_date, currency)
-        except Exception:
-            return self._get_mock_events_for_date(target_date, currency)
-    
-    def _parse_events(self, data: list[dict]) -> list[EconomicEvent]:
-        """
-        Parsea los datos de la API a objetos EconomicEvent
-        @param data - Datos en formato JSON de la API
-        @returns Lista de eventos económicos parseados
-        """
-        events: list[EconomicEvent] = []
-        
-        for item in data:
-            try:
-                event_date = datetime.fromisoformat(
-                    item.get("Date", "").replace("Z", "+00:00")
-                )
-                
-                importance_str = item.get("Importance", "low").lower()
-                importance = ImpactLevel(importance_str) if importance_str in [
-                    "low", "medium", "high"
-                ] else ImpactLevel.LOW
-                
-                event = EconomicEvent(
-                    date=event_date,
-                    importance=importance,
-                    currency=item.get("Currency", ""),
-                    description=item.get("Event", ""),
-                    country=item.get("Country", None),
-                    actual=item.get("Actual", None),
-                    forecast=item.get("Forecast", None),
-                    previous=item.get("Previous", None)
-                )
-                events.append(event)
-            except (ValueError, KeyError):
-                continue
-        
-        return events
-    
-    def _get_mock_events_for_date(
-        self,
-        target_date: date,
-        currency: Optional[str]
-    ) -> list[EconomicEvent]:
-        """
-        Genera eventos mock para desarrollo/testing cuando la API no está disponible
-        @param target_date - Fecha objetivo
-        @param currency - Moneda para filtrar
-        @returns Lista de eventos mock
-        """
-        mock_events: list[EconomicEvent] = []
-        
-        if target_date == date.today():
-            mock_events.append(
-                EconomicEvent(
-                    date=datetime.combine(target_date, datetime.min.time()),
-                    importance=ImpactLevel.HIGH,
-                    currency=currency or "USD",
-                    description="NFP - Non-Farm Payrolls",
-                    country="US"
-                )
-            )
-            mock_events.append(
-                EconomicEvent(
-                    date=datetime.combine(target_date, datetime.min.time()),
-                    importance=ImpactLevel.HIGH,
-                    currency=currency or "USD",
-                    description="PMI Manufacturero",
-                    country="US"
-                )
-            )
-        
-        return mock_events
     
     def _generate_summary(self, events: list[EconomicEvent]) -> str:
         """
@@ -177,4 +117,3 @@ class EconomicCalendarService:
             f"Hoy hay {len(events)} noticias de alto impacto: "
             f"{descriptions_text} y {last_description}."
         )
-

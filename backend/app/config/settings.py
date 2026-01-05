@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     """Configuración de la aplicación"""
     
     # API de calendario económico
+    economic_calendar_provider: str = Field(
+        default="tradingeconomics",
+        description="Proveedor de calendario económico (tradingeconomics, mock)"
+    )
     economic_calendar_api_key: Optional[str] = Field(
         default=None,
         description="API key para el servicio de calendario económico"
