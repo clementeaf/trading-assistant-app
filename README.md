@@ -37,7 +37,28 @@ Copia el archivo de ejemplo y configura las variables de entorno:
 cp config.example.env .env
 ```
 
-Edita `.env` y configura tu API key del calendario económico.
+Edita `.env` y configura tus API keys:
+- `ECONOMIC_CALENDAR_API_KEY`: API key para el calendario económico (TradingEconomics)
+- `MARKET_DATA_API_KEY`: API key para datos de mercado (Alpha Vantage)
+
+### Proveedores de Datos de Mercado
+
+La aplicación soporta múltiples proveedores de datos de mercado:
+
+**Alpha Vantage** (Recomendado para Forex):
+- Plan gratuito: 5 calls/min, 500 calls/día
+- Excelente para pares de divisas (XAUUSD, EURUSD, etc.)
+- Obtén tu API key: https://www.alphavantage.co/support/#api-key
+- Configuración: `MARKET_DATA_PROVIDER=alphavantage`
+
+**Mock Provider** (Desarrollo):
+- Datos simulados para testing
+- No requiere API key
+- Configuración: `MARKET_DATA_PROVIDER=mock`
+
+**Nota**: Alpha Vantage no soporta directamente DXY, bonos (US10Y, US02Y, US30Y) ni índices (NASDAQ). Para estos instrumentos, la aplicación usa automáticamente el mock provider como fallback.
+
+Ver `backend/MARKET_DATA_PROVIDERS.md` para más detalles.
 
 ## Uso Local
 
@@ -282,13 +303,17 @@ El archivo `samconfig.toml` contiene la configuración por defecto. Puedes modif
 - `Stage`: Etapa de despliegue (dev, staging, prod)
 - `EconomicCalendarProvider`: Proveedor a usar (tradingeconomics o mock)
 - `EconomicCalendarApiKey`: API key (opcional, requerido solo para tradingeconomics)
+- `MarketDataProvider`: Proveedor de datos de mercado (alphavantage o mock)
+- `MarketDataApiKey`: API key para Alpha Vantage (opcional, requerido solo para alphavantage)
 
 ### Variables de entorno en Lambda
 
 Las siguientes variables se configuran automáticamente:
-- `ECONOMIC_CALENDAR_PROVIDER`: Proveedor de calendario económico
+- `ECONOMIC_CALENDAR_PROVIDER`: Proveedor de calendario económico (tradingeconomics, mock)
 - `ECONOMIC_CALENDAR_API_KEY`: API key (si se proporciona)
 - `ECONOMIC_CALENDAR_API_URL`: URL de la API
+- `MARKET_DATA_PROVIDER`: Proveedor de datos de mercado (alphavantage, mock)
+- `MARKET_DATA_API_KEY`: API key para datos de mercado (Alpha Vantage)
 - `DEFAULT_CURRENCY`: Moneda por defecto (USD)
 - `LOG_LEVEL`: Nivel de logging (INFO)
 - `STAGE`: Etapa de despliegue

@@ -46,6 +46,20 @@ class Settings(BaseSettings):
         description="URL de conexión a PostgreSQL (ej: postgresql://user:pass@host:port/db)"
     )
     
+    # API de datos de mercado
+    market_data_provider: str = Field(
+        default="mock",
+        description="Proveedor de datos de mercado (alphavantage, mock)"
+    )
+    market_data_api_key: Optional[str] = Field(
+        default=None,
+        description="API key para el servicio de datos de mercado"
+    )
+    market_data_api_url: Optional[str] = Field(
+        default=None,
+        description="URL base de la API de datos de mercado (opcional)"
+    )
+    
     class Config:
         """Configuración de Pydantic"""
         env_file = ".env"

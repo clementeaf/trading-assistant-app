@@ -13,7 +13,7 @@ capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
 region = "us-east-1"
-parameter_overrides = "Stage=dev EconomicCalendarProvider=mock EconomicCalendarApiKey="
+parameter_overrides = "Stage=dev EconomicCalendarProvider=mock EconomicCalendarApiKey= MarketDataProvider=mock MarketDataApiKey="
 
 [default.package.parameters]
 resolve_s3 = true

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config.settings import Settings
 from app.models.market_analysis import DailyMarketAnalysis, PriceCandle, SessionType
 from app.providers.market_data.base_market_provider import MarketDataProvider
+from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
 from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.utils.market_analyzer import MarketAnalyzer
 from app.utils.trading_sessions import TradingSessions
@@ -36,9 +37,26 @@ class MarketAnalysisService:
         @param settings - Configuración de la aplicación
         @returns Instancia del proveedor
         """
-        # Por ahora solo mock, se puede extender con APIs reales
-        logger.info("Using mock provider for market data")
-        return MockMarketProvider()
+        provider_name = settings.market_data_provider.lower()
+        
+        if provider_name == "alphavantage":
+            if not settings.market_data_api_key:
+                logger.warning(
+                    "Alpha Vantage provider selected but no API key configured. "
+                    "Falling back to mock provider."
+                )
+                return MockMarketProvider()
+            
+            logger.info("Using Alpha Vantage provider for market data")
+            return AlphaVantageProvider(api_key=settings.market_data_api_key)
+        elif provider_name == "mock":
+            logger.info("Using mock provider for market data")
+            return MockMarketProvider()
+        else:
+            logger.warning(
+                f"Unknown market data provider '{provider_name}'. Using mock provider."
+            )
+            return MockMarketProvider()
     
     async def analyze_yesterday_sessions(
         self,
@@ -63,12 +81,28 @@ class MarketAnalysisService:
         yesterday_end = datetime.combine(yesterday, datetime.max.time())
         
         # Obtener velas del día anterior y de ayer
-        day_before_candles = await self.provider.fetch_historical_candles(
-            instrument, day_before_start, day_before_end, "1h"
-        )
-        yesterday_candles = await self.provider.fetch_historical_candles(
-            instrument, yesterday_start, yesterday_end, "1h"
-        )
+        try:
+            day_before_candles = await self.provider.fetch_historical_candles(
+                instrument, day_before_start, day_before_end, "1h"
+            )
+            yesterday_candles = await self.provider.fetch_historical_candles(
+                instrument, yesterday_start, yesterday_end, "1h"
+            )
+        except ValueError as e:
+            # Si el proveedor no soporta el instrumento, intentar con mock
+            if "does not support" in str(e) or "Failed to fetch" in str(e):
+                logger.warning(
+                    f"Provider does not support {instrument}, falling back to mock provider"
+                )
+                mock_provider = MockMarketProvider()
+                day_before_candles = await mock_provider.fetch_historical_candles(
+                    instrument, day_before_start, day_before_end, "1h"
+                )
+                yesterday_candles = await mock_provider.fetch_historical_candles(
+                    instrument, yesterday_start, yesterday_end, "1h"
+                )
+            else:
+                raise
         
         if not yesterday_candles:
             raise ValueError(f"No data available for {instrument} on {yesterday}")

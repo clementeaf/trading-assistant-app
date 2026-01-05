@@ -28,6 +28,7 @@ services:
       - LOG_LEVEL=INFO
       - ECONOMIC_CALENDAR_PROVIDER=mock
       - MARKET_DATA_PROVIDER=mock
+      - MARKET_DATA_API_KEY=${MARKET_DATA_API_KEY:-}
       - DEFAULT_CURRENCY=USD
       - STAGE=dev
       - FRONTEND_URL=http://localhost:30500

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config.settings import Settings
 from app.models.market_alignment import MarketAlignmentAnalysis
 from app.providers.market_data.base_market_provider import MarketDataProvider
+from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
 from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.utils.alignment_analyzer import AlignmentAnalyzer
 
@@ -35,8 +36,26 @@ class MarketAlignmentService:
         @param settings - Configuración de la aplicación
         @returns Instancia del proveedor
         """
-        logger.info("Using mock provider for market data")
-        return MockMarketProvider()
+        provider_name = settings.market_data_provider.lower()
+        
+        if provider_name == "alphavantage":
+            if not settings.market_data_api_key:
+                logger.warning(
+                    "Alpha Vantage provider selected but no API key configured. "
+                    "Falling back to mock provider."
+                )
+                return MockMarketProvider()
+            
+            logger.info("Using Alpha Vantage provider for market data")
+            return AlphaVantageProvider(api_key=settings.market_data_api_key)
+        elif provider_name == "mock":
+            logger.info("Using mock provider for market data")
+            return MockMarketProvider()
+        else:
+            logger.warning(
+                f"Unknown market data provider '{provider_name}'. Using mock provider."
+            )
+            return MockMarketProvider()
     
     async def analyze_dxy_bond_alignment(
         self,
@@ -59,20 +78,43 @@ class MarketAlignmentService:
         dxy_day_before_start = datetime.combine(day_before, datetime.min.time())
         dxy_day_before_end = datetime.combine(day_before, datetime.max.time())
         
-        dxy_yesterday_candles = await self.provider.fetch_historical_candles(
-            "DXY", dxy_yesterday_start, dxy_yesterday_end, "1h"
-        )
-        dxy_day_before_candles = await self.provider.fetch_historical_candles(
-            "DXY", dxy_day_before_start, dxy_day_before_end, "1h"
-        )
+        # DXY y bonos no están disponibles en Alpha Vantage
+        # Usar mock provider para estos instrumentos
+        from app.providers.market_data.mock_market_provider import MockMarketProvider
         
-        # Obtener datos del bono
-        bond_yesterday_candles = await self.provider.fetch_historical_candles(
-            bond_symbol, dxy_yesterday_start, dxy_yesterday_end, "1h"
-        )
-        bond_day_before_candles = await self.provider.fetch_historical_candles(
-            bond_symbol, dxy_day_before_start, dxy_day_before_end, "1h"
-        )
+        mock_provider = MockMarketProvider()
+        
+        try:
+            dxy_yesterday_candles = await self.provider.fetch_historical_candles(
+                "DXY", dxy_yesterday_start, dxy_yesterday_end, "1h"
+            )
+            dxy_day_before_candles = await self.provider.fetch_historical_candles(
+                "DXY", dxy_day_before_start, dxy_day_before_end, "1h"
+            )
+        except (ValueError, Exception) as e:
+            logger.warning(f"Provider does not support DXY, using mock: {str(e)}")
+            dxy_yesterday_candles = await mock_provider.fetch_historical_candles(
+                "DXY", dxy_yesterday_start, dxy_yesterday_end, "1h"
+            )
+            dxy_day_before_candles = await mock_provider.fetch_historical_candles(
+                "DXY", dxy_day_before_start, dxy_day_before_end, "1h"
+            )
+        
+        try:
+            bond_yesterday_candles = await self.provider.fetch_historical_candles(
+                bond_symbol, dxy_yesterday_start, dxy_yesterday_end, "1h"
+            )
+            bond_day_before_candles = await self.provider.fetch_historical_candles(
+                bond_symbol, dxy_day_before_start, dxy_day_before_end, "1h"
+            )
+        except (ValueError, Exception) as e:
+            logger.warning(f"Provider does not support {bond_symbol}, using mock: {str(e)}")
+            bond_yesterday_candles = await mock_provider.fetch_historical_candles(
+                bond_symbol, dxy_yesterday_start, dxy_yesterday_end, "1h"
+            )
+            bond_day_before_candles = await mock_provider.fetch_historical_candles(
+                bond_symbol, dxy_day_before_start, dxy_day_before_end, "1h"
+            )
         
         if not dxy_yesterday_candles or not dxy_day_before_candles:
             raise ValueError(f"No data available for DXY")

@@ -30,6 +30,20 @@ Parameters:
       - tradingeconomics
       - mock
     Description: Provider for economic calendar (tradingeconomics or mock)
+  
+  MarketDataProvider:
+    Type: String
+    Default: mock
+    AllowedValues:
+      - alphavantage
+      - mock
+    Description: Provider for market data (alphavantage or mock)
+  
+  MarketDataApiKey:
+    Type: String
+    Default: ""
+    Description: API Key for Market Data service (Alpha Vantage API key, leave empty to use mock provider)
+    NoEcho: true
 
 Resources:
   TradingAssistantAPI:
@@ -46,6 +60,8 @@ Resources:
           ECONOMIC_CALENDAR_PROVIDER: !Ref EconomicCalendarProvider
           ECONOMIC_CALENDAR_API_KEY: !Ref EconomicCalendarApiKey
           ECONOMIC_CALENDAR_API_URL: https://api.tradingeconomics.com/calendar
+          MARKET_DATA_PROVIDER: !Ref MarketDataProvider
+          MARKET_DATA_API_KEY: !Ref MarketDataApiKey
           DEFAULT_CURRENCY: USD
           LOG_LEVEL: INFO
           STAGE: !Ref Stage
