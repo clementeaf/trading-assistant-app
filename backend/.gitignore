@@ -34,3 +34,7 @@ htmlcov/
 # Logs
 *.log
 
+# AWS SAM
+.aws-sam/
+samconfig.toml
+
