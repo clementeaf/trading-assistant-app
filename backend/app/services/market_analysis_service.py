@@ -12,7 +12,6 @@ from app.models.market_analysis import DailyMarketAnalysis, PriceCandle, Session
 from app.providers.market_data.base_market_provider import MarketDataProvider
 from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
-from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.utils.market_analyzer import MarketAnalyzer
 from app.utils.trading_sessions import TradingSessions
 
@@ -42,32 +41,27 @@ class MarketAnalysisService:
         
         if provider_name == "twelvedata":
             if not settings.market_data_api_key:
-                logger.warning(
+                raise ValueError(
                     "Twelve Data provider selected but no API key configured. "
-                    "Falling back to mock provider."
+                    "Please set MARKET_DATA_API_KEY environment variable."
                 )
-                return MockMarketProvider()
             
             logger.info("Using Twelve Data provider for market data (specialized in XAUUSD)")
             return TwelveDataProvider(api_key=settings.market_data_api_key)
         elif provider_name == "alphavantage":
             if not settings.market_data_api_key:
-                logger.warning(
+                raise ValueError(
                     "Alpha Vantage provider selected but no API key configured. "
-                    "Falling back to mock provider."
+                    "Please set MARKET_DATA_API_KEY environment variable."
                 )
-                return MockMarketProvider()
             
             logger.info("Using Alpha Vantage provider for market data")
             return AlphaVantageProvider(api_key=settings.market_data_api_key)
-        elif provider_name == "mock":
-            logger.info("Using mock provider for market data")
-            return MockMarketProvider()
         else:
-            logger.warning(
-                f"Unknown market data provider '{provider_name}'. Using mock provider."
+            raise ValueError(
+                f"Unknown market data provider '{provider_name}'. "
+                "Supported providers: twelvedata, alphavantage"
             )
-            return MockMarketProvider()
     
     async def analyze_yesterday_sessions(
         self,
@@ -92,28 +86,69 @@ class MarketAnalysisService:
         yesterday_end = datetime.combine(yesterday, datetime.max.time())
         
         # Obtener velas del día anterior y de ayer
+        day_before_candles: list[PriceCandle] = []
+        yesterday_candles: list[PriceCandle] = []
+        
+        # Intentar obtener datos del día anterior con el proveedor real
         try:
             day_before_candles = await self.provider.fetch_historical_candles(
                 instrument, day_before_start, day_before_end, "1h"
             )
+            logger.info(f"Obtained {len(day_before_candles)} real candles for day before ({day_before})")
+        except ValueError as e:
+            logger.error(
+                f"Could not fetch real data for day before ({day_before}): {str(e)}"
+            )
+            raise ValueError(
+                f"No real market data available for {instrument} on {day_before}. "
+                "Please ensure the market data provider has data for this date."
+            )
+        
+        # Intentar obtener datos de ayer con el proveedor real
+        try:
             yesterday_candles = await self.provider.fetch_historical_candles(
                 instrument, yesterday_start, yesterday_end, "1h"
             )
+            logger.info(f"Obtained {len(yesterday_candles)} real candles for yesterday ({yesterday})")
         except ValueError as e:
-            # Si el proveedor no soporta el instrumento, intentar con mock
-            if "does not support" in str(e) or "Failed to fetch" in str(e):
-                logger.warning(
-                    f"Provider does not support {instrument}, falling back to mock provider"
+            logger.warning(
+                f"Could not fetch real data for yesterday ({yesterday}): {str(e)}. "
+                "Attempting to use the most recent available day with real data."
+            )
+            # Si no hay datos para ayer, intentar usar el día anterior como "ayer"
+            # (que ya tiene datos reales)
+            if day_before_candles:
+                logger.info(
+                    f"Using day before ({day_before}) data as yesterday data "
+                    "(most recent available real data)"
                 )
-                mock_provider = MockMarketProvider()
-                day_before_candles = await mock_provider.fetch_historical_candles(
-                    instrument, day_before_start, day_before_end, "1h"
-                )
-                yesterday_candles = await mock_provider.fetch_historical_candles(
-                    instrument, yesterday_start, yesterday_end, "1h"
-                )
+                yesterday_candles = day_before_candles
+                # Para el día anterior, usar el día previo a ese
+                if len(day_before_candles) > 0:
+                    # Intentar obtener datos del día previo al día anterior
+                    day_before_2 = day_before - timedelta(days=1)
+                    day_before_2_start = datetime.combine(day_before_2, datetime.min.time())
+                    day_before_2_end = datetime.combine(day_before_2, datetime.max.time())
+                    try:
+                        day_before_candles = await self.provider.fetch_historical_candles(
+                            instrument, day_before_2_start, day_before_2_end, "1h"
+                        )
+                        logger.info(f"Obtained {len(day_before_candles)} real candles for day before ({day_before_2})")
+                    except ValueError as e:
+                        logger.error(
+                            f"Could not fetch real data for day before ({day_before_2}): {str(e)}"
+                        )
+                        raise ValueError(
+                            f"No real market data available for {instrument} on {day_before_2}. "
+                            "Please ensure the market data provider has data for this date."
+                        )
             else:
-                raise
+                # Si no hay datos reales para ningún día, lanzar error
+                logger.error("No real data available for any date")
+                raise ValueError(
+                    f"No real market data available for {instrument}. "
+                    "Please ensure the market data provider has data available."
+                )
         
         if not yesterday_candles:
             raise ValueError(f"No data available for {instrument} on {yesterday}")

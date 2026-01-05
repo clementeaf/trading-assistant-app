@@ -54,8 +54,8 @@ class Settings(BaseSettings):
     
     # API de datos de mercado
     market_data_provider: str = Field(
-        default="mock",
-        description="Proveedor de datos de mercado (twelvedata, alphavantage, mock)"
+        default="twelvedata",
+        description="Proveedor de datos de mercado (twelvedata, alphavantage)"
     )
     market_data_api_key: Optional[str] = Field(
         default=None,

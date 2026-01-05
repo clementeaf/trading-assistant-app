@@ -12,7 +12,6 @@ from app.models.market_alignment import MarketAlignmentAnalysis
 from app.providers.market_data.base_market_provider import MarketDataProvider
 from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
-from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.utils.alignment_analyzer import AlignmentAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -41,32 +40,27 @@ class MarketAlignmentService:
         
         if provider_name == "twelvedata":
             if not settings.market_data_api_key:
-                logger.warning(
+                raise ValueError(
                     "Twelve Data provider selected but no API key configured. "
-                    "Falling back to mock provider."
+                    "Please set MARKET_DATA_API_KEY environment variable."
                 )
-                return MockMarketProvider()
             
             logger.info("Using Twelve Data provider for market data (specialized in XAUUSD)")
             return TwelveDataProvider(api_key=settings.market_data_api_key)
         elif provider_name == "alphavantage":
             if not settings.market_data_api_key:
-                logger.warning(
+                raise ValueError(
                     "Alpha Vantage provider selected but no API key configured. "
-                    "Falling back to mock provider."
+                    "Please set MARKET_DATA_API_KEY environment variable."
                 )
-                return MockMarketProvider()
             
             logger.info("Using Alpha Vantage provider for market data")
             return AlphaVantageProvider(api_key=settings.market_data_api_key)
-        elif provider_name == "mock":
-            logger.info("Using mock provider for market data")
-            return MockMarketProvider()
         else:
-            logger.warning(
-                f"Unknown market data provider '{provider_name}'. Using mock provider."
+            raise ValueError(
+                f"Unknown market data provider '{provider_name}'. "
+                "Supported providers: twelvedata, alphavantage"
             )
-            return MockMarketProvider()
     
     async def analyze_dxy_bond_alignment(
         self,
@@ -89,12 +83,8 @@ class MarketAlignmentService:
         dxy_day_before_start = datetime.combine(day_before, datetime.min.time())
         dxy_day_before_end = datetime.combine(day_before, datetime.max.time())
         
-        # DXY y bonos no están disponibles en Alpha Vantage
-        # Usar mock provider para estos instrumentos
-        from app.providers.market_data.mock_market_provider import MockMarketProvider
-        
-        mock_provider = MockMarketProvider()
-        
+        # DXY y bonos no están disponibles en Twelve Data
+        # Intentar obtener datos reales, si falla, lanzar error
         try:
             dxy_yesterday_candles = await self.provider.fetch_historical_candles(
                 "DXY", dxy_yesterday_start, dxy_yesterday_end, "1h"
@@ -103,12 +93,11 @@ class MarketAlignmentService:
                 "DXY", dxy_day_before_start, dxy_day_before_end, "1h"
             )
         except (ValueError, Exception) as e:
-            logger.warning(f"Provider does not support DXY, using mock: {str(e)}")
-            dxy_yesterday_candles = await mock_provider.fetch_historical_candles(
-                "DXY", dxy_yesterday_start, dxy_yesterday_end, "1h"
-            )
-            dxy_day_before_candles = await mock_provider.fetch_historical_candles(
-                "DXY", dxy_day_before_start, dxy_day_before_end, "1h"
+            logger.error(f"Provider does not support DXY: {str(e)}")
+            raise ValueError(
+                f"DXY data is not available from the configured market data provider. "
+                f"Current provider ({self.settings.market_data_provider}) does not support DXY. "
+                "Please use a provider that supports DXY or configure a different data source."
             )
         
         try:
@@ -119,12 +108,11 @@ class MarketAlignmentService:
                 bond_symbol, dxy_day_before_start, dxy_day_before_end, "1h"
             )
         except (ValueError, Exception) as e:
-            logger.warning(f"Provider does not support {bond_symbol}, using mock: {str(e)}")
-            bond_yesterday_candles = await mock_provider.fetch_historical_candles(
-                bond_symbol, dxy_yesterday_start, dxy_yesterday_end, "1h"
-            )
-            bond_day_before_candles = await mock_provider.fetch_historical_candles(
-                bond_symbol, dxy_day_before_start, dxy_day_before_end, "1h"
+            logger.error(f"Provider does not support {bond_symbol}: {str(e)}")
+            raise ValueError(
+                f"{bond_symbol} data is not available from the configured market data provider. "
+                f"Current provider ({self.settings.market_data_provider}) does not support {bond_symbol}. "
+                "Please use a provider that supports bonds or configure a different data source."
             )
         
         if not dxy_yesterday_candles or not dxy_day_before_candles:
