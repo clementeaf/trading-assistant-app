@@ -1,20 +1,23 @@
 # Proveedores de Datos de Mercado
 
+**IMPORTANTE**: Esta aplicación está enfocada exclusivamente en **XAUUSD (oro)** y factores que lo impactan. No nos interesan otros pares de divisas.
+
 ## Proveedores Disponibles
 
-### 1. Alpha Vantage (Recomendado para Forex)
+### 1. Alpha Vantage (Limitado para XAUUSD)
 
 **Características:**
 - Plan gratuito: 5 llamadas/minuto, 500 llamadas/día
-- Soporta datos históricos intradía y diarios
-- Excelente para pares de divisas (forex)
 - API REST simple
 
-**Instrumentos Soportados:**
-- ✅ Forex: XAUUSD, EURUSD, GBPUSD, USDJPY, etc.
-- ⚠️ Acciones: Limitado (requiere símbolo de bolsa)
-- ❌ Índices: DXY, NASDAQ (no soportados directamente)
-- ❌ Bonos: US10Y, US02Y, US30Y (no soportados directamente)
+**Soporte para XAUUSD:**
+- ❌ **FX_INTRADAY**: Requiere plan premium
+- ❌ **FX_DAILY**: Requiere plan premium o tiene rate limits estrictos
+- ⚠️ **Conclusión**: Alpha Vantage NO es adecuado para XAUUSD en plan gratuito
+
+**Instrumentos Soportados (plan gratuito):**
+- ⚠️ Algunos pares de divisas estándar (EUR/USD, GBP/USD) - pero NO nos interesan
+- ❌ XAUUSD requiere plan premium
 
 **Configuración:**
 ```env
@@ -27,10 +30,13 @@ MARKET_DATA_API_KEY=tu_api_key_aqui
 2. Registra tu email
 3. Recibirás la API key por email
 
-**Limitaciones:**
-- Rate limit: 5 calls/minuto (plan gratuito)
-- Datos intradía: Solo últimos 30 días
-- Algunos instrumentos no están disponibles
+**Limitaciones para XAUUSD:**
+- ❌ **NO funciona para XAUUSD en plan gratuito**
+- `FX_INTRADAY` requiere plan premium
+- `FX_DAILY` para XAU/USD requiere plan premium
+- La aplicación automáticamente hace fallback al mock provider cuando Alpha Vantage no puede proporcionar datos
+
+**Recomendación**: Alpha Vantage NO es adecuado para XAUUSD. Usar mock provider o buscar proveedores específicos para metales preciosos.
 
 ### 2. Mock Provider (Desarrollo/Testing)
 
@@ -52,13 +58,20 @@ La aplicación intenta usar el proveedor configurado. Si falla o no hay API key,
 1. Proveedor configurado (si tiene API key válida)
 2. Mock provider (fallback)
 
-## Futuros Proveedores
+## Futuros Proveedores para XAUUSD
 
-### Opciones a considerar:
-- **Twelve Data**: Excelente para múltiples instrumentos, incluyendo índices y bonos
-- **Finnhub**: Buena para acciones y algunos índices
-- **OANDA**: Especializado en forex, datos de alta calidad
-- **Polygon.io**: Datos de mercado completos, incluyendo crypto
+### Opciones a considerar (específicas para oro/metales preciosos):
+- **Twelve Data**: Tiene datos de metales preciosos, incluyendo XAUUSD
+- **Metals API**: API específica para metales preciosos (oro, plata, etc.)
+- **OANDA**: Tiene XAU/USD disponible, datos de alta calidad
+- **Polygon.io**: Datos de mercado completos, puede incluir metales
+- **FXCM Data**: Datos históricos de XAUUSD
+- **TradingView API**: Acceso a datos de XAUUSD (requiere suscripción)
+
+**Nota**: Todos estos proveedores requieren evaluación para verificar:
+1. Disponibilidad de datos históricos intradía para XAUUSD
+2. Costos y límites del plan gratuito
+3. Calidad y latencia de los datos
 
 ## Integración con Base de Datos
 

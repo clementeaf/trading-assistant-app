@@ -25,13 +25,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - LOG_LEVEL=INFO
-      - ECONOMIC_CALENDAR_PROVIDER=mock
-      - MARKET_DATA_PROVIDER=mock
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ECONOMIC_CALENDAR_PROVIDER=${ECONOMIC_CALENDAR_PROVIDER:-mock}
+      - ECONOMIC_CALENDAR_API_KEY=${ECONOMIC_CALENDAR_API_KEY:-}
+      - MARKET_DATA_PROVIDER=${MARKET_DATA_PROVIDER:-mock}
       - MARKET_DATA_API_KEY=${MARKET_DATA_API_KEY:-}
-      - DEFAULT_CURRENCY=USD
-      - STAGE=dev
-      - FRONTEND_URL=http://localhost:30500
+      - DEFAULT_CURRENCY=${DEFAULT_CURRENCY:-USD}
+      - STAGE=${STAGE:-dev}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:30500}
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/trading_assistant
     volumes:
       - .:/app

@@ -29,14 +29,15 @@ class MockMarketProvider(MarketDataProvider):
         candles: list[PriceCandle] = []
         
         # Precio base según instrumento
+        # NOTA: Esta app está enfocada en XAUUSD (oro) y factores que lo impactan
         base_prices = {
-            "XAUUSD": 2650.0,
-            "EURUSD": 1.0850,
-            "NASDAQ": 15000.0,
-            "DXY": 104.50,  # Índice del dólar típicamente entre 90-110
-            "US10Y": 4.25,  # Rendimiento del bono a 10 años en porcentaje
-            "US02Y": 4.50,  # Rendimiento del bono a 2 años en porcentaje
-            "US30Y": 4.40   # Rendimiento del bono a 30 años en porcentaje
+            "XAUUSD": 2650.0,  # Precio típico del oro en USD/oz (rango: 1800-2800)
+            "EURUSD": 1.0850,  # Solo para referencia (DXY impacta XAUUSD)
+            "NASDAQ": 15000.0,  # Solo para referencia (riesgo general)
+            "DXY": 104.50,  # Índice del dólar - CRÍTICO para XAUUSD (inversamente correlacionado)
+            "US10Y": 4.25,  # Rendimiento del bono a 10 años - impacta XAUUSD (inversamente correlacionado)
+            "US02Y": 4.50,  # Rendimiento del bono a 2 años - impacta XAUUSD
+            "US30Y": 4.40   # Rendimiento del bono a 30 años - impacta XAUUSD
         }
         base_price = base_prices.get(instrument.upper(), 100.0)
         

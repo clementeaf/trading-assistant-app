@@ -4,7 +4,7 @@ Aplicación de asistente para trading con servicio de briefing de mercado.
 
 ## Descripción
 
-Esta aplicación proporciona herramientas y funcionalidades para asistir en operaciones de trading, incluyendo un servicio de briefing de mercado que verifica noticias económicas de alto impacto.
+Esta aplicación está **exclusivamente enfocada en XAUUSD (oro)** y proporciona herramientas para asistir en operaciones de trading de oro, incluyendo un servicio de briefing de mercado que verifica noticias económicas de alto impacto y factores que afectan el precio del oro.
 
 ## Arquitectura
 

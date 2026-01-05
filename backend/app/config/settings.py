@@ -46,6 +46,12 @@ class Settings(BaseSettings):
         description="URL de conexión a PostgreSQL (ej: postgresql://user:pass@host:port/db)"
     )
     
+    # Configuración de logging
+    log_level: str = Field(
+        default="INFO",
+        description="Nivel de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+    )
+    
     # API de datos de mercado
     market_data_provider: str = Field(
         default="mock",

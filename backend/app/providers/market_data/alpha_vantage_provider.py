@@ -18,19 +18,21 @@ class AlphaVantageProvider(MarketDataProvider):
     BASE_URL = "https://www.alphavantage.co/query"
     
     # Mapeo de instrumentos a símbolos de Alpha Vantage
+    # NOTA: Esta app está enfocada en XAUUSD (oro) y factores que lo impactan
     INSTRUMENT_MAPPING = {
-        "XAUUSD": "XAU/USD",
+        "XAUUSD": "XAU/USD",  # Oro - objetivo principal (requiere premium en Alpha Vantage)
+        "DXY": "DXY",  # Dollar Index - impacta XAUUSD (inversamente correlacionado)
+        "US10Y": "US10Y",  # Bono 10 años - impacta XAUUSD (inversamente correlacionado)
+        "US02Y": "US02Y",  # Bono 2 años - impacta XAUUSD
+        "US30Y": "US30Y",  # Bono 30 años - impacta XAUUSD
+        "NASDAQ": "NASDAQ",  # Índice de riesgo - contexto para XAUUSD
+        # Pares de divisas estándar (no nos interesan, solo para referencia)
         "EURUSD": "EUR/USD",
         "GBPUSD": "GBP/USD",
         "USDJPY": "USD/JPY",
         "AUDUSD": "AUD/USD",
         "USDCAD": "USD/CAD",
         "USDCHF": "USD/CHF",
-        "DXY": "DXY",  # Dollar Index puede requerir endpoint diferente
-        "US10Y": "US10Y",  # Bonos pueden requerir endpoint diferente
-        "US02Y": "US02Y",
-        "US30Y": "US30Y",
-        "NASDAQ": "NASDAQ",  # Índices pueden requerir endpoint diferente
     }
     
     # Mapeo de intervalos
@@ -72,8 +74,10 @@ class AlphaVantageProvider(MarketDataProvider):
         instrument_upper = instrument.upper()
         symbol = self.INSTRUMENT_MAPPING.get(instrument_upper, instrument_upper)
         
-        # Alpha Vantage tiene limitaciones para algunos instrumentos
-        # DXY, bonos e índices pueden requerir endpoints diferentes o no estar disponibles
+        # Alpha Vantage tiene limitaciones para XAUUSD (nuestro objetivo principal)
+        # XAU/USD requiere plan premium en Alpha Vantage
+        # DXY, bonos e índices tampoco están disponibles directamente
+        # Para estos casos, el servicio usa el mock provider como fallback
         if instrument_upper in ["DXY", "US10Y", "US02Y", "US30Y", "NASDAQ"]:
             logger.warning(
                 f"Alpha Vantage may not support {instrument_upper} directly. "
@@ -87,15 +91,29 @@ class AlphaVantageProvider(MarketDataProvider):
         interval_mapped = self.INTERVAL_MAPPING.get(interval.lower(), "60min")
         
         # Determinar si usar intradía o diario
+        # Nota: FX_INTRADAY requiere plan premium, así que intentamos primero intradía
+        # y si falla, usamos datos diarios
         use_intraday = interval_mapped in ["1min", "5min", "15min", "30min", "60min", "240min"]
         
         candles: list[PriceCandle] = []
         
         try:
             if use_intraday:
-                candles = await self._fetch_intraday_data(
-                    symbol, start_date, end_date, interval_mapped, instrument_upper
-                )
+                try:
+                    candles = await self._fetch_intraday_data(
+                        symbol, start_date, end_date, interval_mapped, instrument_upper
+                    )
+                except ValueError as e:
+                    if "premium" in str(e).lower():
+                        logger.info(
+                            f"FX_INTRADAY requires premium, falling back to daily data for {instrument}"
+                        )
+                        # Intentar con datos diarios como fallback
+                        candles = await self._fetch_daily_data(
+                            symbol, start_date, end_date, instrument_upper
+                        )
+                    else:
+                        raise
             else:
                 candles = await self._fetch_daily_data(
                     symbol, start_date, end_date, instrument_upper
@@ -189,14 +207,25 @@ class AlphaVantageProvider(MarketDataProvider):
         if "Note" in data:
             raise ValueError(f"Alpha Vantage API rate limit: {data['Note']}")
         
+        # Verificar si es un endpoint premium
+        if "Information" in data and "premium" in data["Information"].lower():
+            logger.warning(f"Alpha Vantage premium endpoint required: {data['Information']}")
+            raise ValueError(
+                f"Alpha Vantage premium endpoint required. "
+                f"FX_INTRADAY requires a premium subscription. "
+                f"Falling back to daily data or mock provider."
+            )
+        
         # Extraer datos de la respuesta
         time_series_key = None
         for key in data.keys():
-            if "Time Series" in key or "Time Series FX" in key:
+            if "Time Series" in key or "Time Series FX" in key or "FX Intraday" in key:
                 time_series_key = key
                 break
         
         if not time_series_key:
+            # Log todas las claves disponibles para debugging
+            logger.warning(f"Available keys in Alpha Vantage response: {list(data.keys())}")
             raise ValueError("No time series data found in Alpha Vantage response")
         
         time_series = data[time_series_key]
@@ -285,14 +314,25 @@ class AlphaVantageProvider(MarketDataProvider):
         if "Note" in data:
             raise ValueError(f"Alpha Vantage API rate limit: {data['Note']}")
         
+        # Verificar si es un endpoint premium
+        if "Information" in data and "premium" in data["Information"].lower():
+            logger.warning(f"Alpha Vantage premium endpoint required: {data['Information']}")
+            raise ValueError(
+                f"Alpha Vantage premium endpoint required. "
+                f"FX_INTRADAY requires a premium subscription. "
+                f"Falling back to daily data or mock provider."
+            )
+        
         # Extraer datos de la respuesta
         time_series_key = None
         for key in data.keys():
-            if "Time Series" in key or "Time Series FX" in key:
+            if "Time Series" in key or "Time Series FX" in key or "FX Intraday" in key:
                 time_series_key = key
                 break
         
         if not time_series_key:
+            # Log todas las claves disponibles para debugging
+            logger.warning(f"Available keys in Alpha Vantage response: {list(data.keys())}")
             raise ValueError("No time series data found in Alpha Vantage response")
         
         time_series = data[time_series_key]
