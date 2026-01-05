@@ -9,18 +9,22 @@ Esta aplicación proporciona herramientas y funcionalidades para asistir en oper
 ## Instalación
 
 ```bash
-npm install
+cd backend
+pip install -r requirements.txt
 ```
 
 ## Uso
 
 ```bash
-npm start
+cd backend
+uvicorn main:app --reload
 ```
 
-## Desarrollo
+La aplicación estará disponible en `http://localhost:8000`
 
-```bash
-npm run dev
-```
+## Documentación
+
+Una vez que la aplicación esté corriendo, puedes acceder a:
+- Documentación interactiva: `http://localhost:8000/docs`
+- Documentación alternativa: `http://localhost:8000/redoc`
 
