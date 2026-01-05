@@ -9,8 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.config.settings import Settings, get_settings
 from app.models.economic_calendar import EventScheduleResponse, HighImpactNewsResponse
 from app.models.market_analysis import DailyMarketAnalysis
+from app.models.market_alignment import MarketAlignmentAnalysis
 from app.services.economic_calendar_service import EconomicCalendarService
 from app.services.market_analysis_service import MarketAnalysisService
+from app.services.market_alignment_service import MarketAlignmentService
 from app.utils.schedule_formatter import ScheduleFormatter
 from app.utils.validators import CurrencyValidator
 
@@ -39,6 +41,17 @@ def get_market_analysis_service(
     @returns Instancia del servicio de análisis de mercado
     """
     return MarketAnalysisService(settings)
+
+
+def get_market_alignment_service(
+    settings: Settings = Depends(get_settings)
+) -> MarketAlignmentService:
+    """
+    Dependency para obtener el servicio de alineación de mercado
+    @param settings - Configuración de la aplicación
+    @returns Instancia del servicio de alineación de mercado
+    """
+    return MarketAlignmentService(settings)
 
 
 @router.get(
@@ -186,5 +199,48 @@ async def get_yesterday_analysis(
         raise HTTPException(
             status_code=500,
             detail="Error interno al obtener el análisis del día anterior"
+        )
+
+
+@router.get(
+    "/dxy-bond-alignment",
+    response_model=MarketAlignmentAnalysis,
+    summary="Analiza la alineación entre DXY y bonos",
+    description="Determina si el DXY y los bonos están alineados o en conflicto, y el sesgo del mercado (risk-off/risk-on)"
+)
+async def get_dxy_bond_alignment(
+    bond: str = Query(
+        "US10Y",
+        description="Símbolo del bono a analizar (US10Y, US02Y, US30Y, etc.)",
+        min_length=4,
+        max_length=10
+    ),
+    service: MarketAlignmentService = Depends(get_market_alignment_service)
+) -> MarketAlignmentAnalysis:
+    """
+    Endpoint para analizar la alineación entre DXY y bonos
+    @param bond - Símbolo del bono (por defecto US10Y)
+    @param service - Servicio de alineación de mercado
+    @returns Análisis de alineación entre DXY y el bono
+    """
+    try:
+        logger.info(f"Fetching DXY-Bond alignment analysis for {bond}")
+        result = await service.analyze_dxy_bond_alignment(bond_symbol=bond)
+        logger.info(
+            f"Alignment: {result.alignment.value}, "
+            f"Bias: {result.market_bias.value}"
+        )
+        return result
+    except ValueError as e:
+        logger.warning(f"Invalid request: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error fetching alignment analysis: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno al obtener el análisis de alineación"
         )
 

@@ -32,7 +32,11 @@ class MockMarketProvider(MarketDataProvider):
         base_prices = {
             "XAUUSD": 2650.0,
             "EURUSD": 1.0850,
-            "NASDAQ": 15000.0
+            "NASDAQ": 15000.0,
+            "DXY": 104.50,  # Índice del dólar típicamente entre 90-110
+            "US10Y": 4.25,  # Rendimiento del bono a 10 años en porcentaje
+            "US02Y": 4.50,  # Rendimiento del bono a 2 años en porcentaje
+            "US30Y": 4.40   # Rendimiento del bono a 30 años en porcentaje
         }
         base_price = base_prices.get(instrument.upper(), 100.0)
         

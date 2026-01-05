@@ -160,6 +160,47 @@ Analiza el cierre del día anterior y las sesiones de trading (Asia, Londres, NY
 - Detección de ruptura de máximos/mínimos del día anterior
 - Resumen textual automático
 
+#### GET `/api/market-briefing/dxy-bond-alignment`
+
+Analiza la alineación entre el DXY (índice del dólar) y los bonos (US10Y, US02Y, etc.).
+
+**Parámetros de consulta:**
+- `bond` (opcional): Símbolo del bono a analizar (por defecto: US10Y). Ejemplos: US10Y, US02Y, US30Y
+
+**Ejemplo de respuesta:**
+```json
+{
+  "dxy": {
+    "symbol": "DXY",
+    "price": 105.07,
+    "previous_price": 105.20,
+    "change_percent": -0.12,
+    "direction": "baja"
+  },
+  "bond": {
+    "symbol": "US10Y",
+    "price": 4.25,
+    "previous_price": 4.26,
+    "change_percent": -0.28,
+    "direction": "baja"
+  },
+  "alignment": "alineados",
+  "market_bias": "risk-on",
+  "summary": "DXY -0.12% y US10Y -0.28% → Alineados, sesgo más bien risk-on."
+}
+```
+
+**Lógica de alineación:**
+- **Alineados (risk-off)**: DXY sube y bono sube → ambos suben
+- **Alineados (risk-on)**: DXY baja y bono baja → ambos bajan
+- **En conflicto (mixto)**: DXY sube y bono baja, o viceversa → señal mixta
+
+**Características:**
+- Calcula cambio porcentual de hoy vs ayer para DXY y bonos
+- Determina si están alineados o en conflicto
+- Identifica sesgo del mercado (risk-off/risk-on/mixto)
+- Resumen textual automático con formato exacto
+
 ## Despliegue en AWS Lambda
 
 El proyecto está configurado para desplegarse en AWS Lambda usando AWS SAM.
