@@ -10,6 +10,7 @@ from app.models.economic_calendar import EconomicEvent, HighImpactNewsResponse, 
 from app.providers.base_provider import EconomicCalendarProvider
 from app.providers.mock_provider import MockProvider
 from app.providers.tradingeconomics_provider import TradingEconomicsProvider
+from app.utils.xauusd_filter import XAUUSDFilter
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +60,15 @@ class EconomicCalendarService:
         currency: Optional[str] = None
     ) -> HighImpactNewsResponse:
         """
-        Obtiene noticias de alto impacto para el día actual
+        Obtiene noticias de alto impacto para XAUUSD del día actual
         @param currency - Moneda para filtrar (opcional, por defecto USD)
-        @returns Respuesta con noticias de alto impacto
+        @returns Respuesta con noticias de alto impacto relevantes para XAUUSD
         """
         today = date.today()
-        target_currency = currency or self.settings.default_currency
+        target_currency = currency or "USD"
         
         logger.info(
-            f"Fetching high impact news for {today} with currency {target_currency}"
+            f"Fetching high impact news for XAUUSD on {today} with currency {target_currency}"
         )
         
         events = await self.provider.fetch_events(today, target_currency)
@@ -75,45 +76,53 @@ class EconomicCalendarService:
         if not events:
             logger.warning(f"No events found for {today}")
         
+        # Filtrar solo eventos de alto impacto
         high_impact_events = [
             event for event in events
             if event.importance == ImpactLevel.HIGH
         ]
         
+        # Filtrar eventos relevantes para XAUUSD
+        xauusd_events = XAUUSDFilter.filter_xauusd_events(high_impact_events)
+        
         logger.info(
-            f"Found {len(high_impact_events)} high impact events out of "
-            f"{len(events)} total events"
+            f"Found {len(xauusd_events)} XAUUSD-relevant high impact events out of "
+            f"{len(high_impact_events)} high impact events and {len(events)} total events"
         )
         
-        has_news = len(high_impact_events) > 0
-        summary = self._generate_summary(high_impact_events)
+        has_news = len(xauusd_events) > 0
+        summary = self._generate_xauusd_summary(xauusd_events)
         
         return HighImpactNewsResponse(
             has_high_impact_news=has_news,
-            count=len(high_impact_events),
-            events=high_impact_events,
-            summary=summary
+            count=len(xauusd_events),
+            events=xauusd_events,
+            summary=summary,
+            instrument="XAUUSD"
         )
     
-    def _generate_summary(self, events: list[EconomicEvent]) -> str:
+    def _generate_xauusd_summary(self, events: list[EconomicEvent]) -> str:
         """
-        Genera un resumen textual de los eventos de alto impacto
-        @param events - Lista de eventos de alto impacto
+        Genera un resumen textual de los eventos de alto impacto para XAUUSD
+        @param events - Lista de eventos de alto impacto relevantes para XAUUSD
         @returns Resumen en formato texto
         """
         if not events:
-            return "No hay noticias de alto impacto hoy."
+            return "No hay noticias de alto impacto para XAUUSD hoy."
         
         event_descriptions = [event.description for event in events]
         unique_descriptions = list(dict.fromkeys(event_descriptions))
         
         if len(unique_descriptions) == 1:
-            return f"Hoy hay 1 noticia de alto impacto: {unique_descriptions[0]}."
+            return (
+                f"Hoy hay 1 noticia de alto impacto para XAUUSD: "
+                f"{unique_descriptions[0]}."
+            )
         
         descriptions_text = ", ".join(unique_descriptions[:-1])
         last_description = unique_descriptions[-1]
         
         return (
-            f"Hoy hay {len(events)} noticias de alto impacto: "
+            f"Hoy hay {len(events)} noticias de alto impacto para XAUUSD: "
             f"{descriptions_text} y {last_description}."
         )

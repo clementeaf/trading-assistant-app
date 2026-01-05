@@ -28,9 +28,10 @@ class EconomicEvent(BaseModel):
 
 
 class HighImpactNewsResponse(BaseModel):
-    """Respuesta del servicio de noticias de alto impacto"""
-    has_high_impact_news: bool = Field(..., description="Indica si hay noticias de alto impacto hoy")
-    count: int = Field(..., description="Cantidad de noticias de alto impacto")
-    events: list[EconomicEvent] = Field(..., description="Lista de eventos de alto impacto")
-    summary: str = Field(..., description="Resumen textual de las noticias")
+    """Respuesta del servicio de noticias de alto impacto para XAUUSD"""
+    has_high_impact_news: bool = Field(..., description="Indica si hay noticias de alto impacto hoy para XAUUSD")
+    count: int = Field(..., description="Cantidad de noticias de alto impacto para XAUUSD")
+    events: list[EconomicEvent] = Field(..., description="Lista de eventos de alto impacto relevantes para XAUUSD")
+    summary: str = Field(..., description="Resumen textual de las noticias relevantes para XAUUSD")
+    instrument: str = Field(default="XAUUSD", description="Instrumento financiero al que aplican las noticias")
 
