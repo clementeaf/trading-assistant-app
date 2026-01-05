@@ -8,7 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config.settings import Settings, get_settings
 from app.models.economic_calendar import EventScheduleResponse, HighImpactNewsResponse
+from app.models.market_analysis import DailyMarketAnalysis
 from app.services.economic_calendar_service import EconomicCalendarService
+from app.services.market_analysis_service import MarketAnalysisService
 from app.utils.schedule_formatter import ScheduleFormatter
 from app.utils.validators import CurrencyValidator
 
@@ -26,6 +28,17 @@ def get_economic_calendar_service(
     @returns Instancia del servicio de calendario económico
     """
     return EconomicCalendarService(settings)
+
+
+def get_market_analysis_service(
+    settings: Settings = Depends(get_settings)
+) -> MarketAnalysisService:
+    """
+    Dependency para obtener el servicio de análisis de mercado
+    @param settings - Configuración de la aplicación
+    @returns Instancia del servicio de análisis de mercado
+    """
+    return MarketAnalysisService(settings)
 
 
 @router.get(
@@ -133,5 +146,45 @@ async def get_event_schedule_today(
         raise HTTPException(
             status_code=500,
             detail="Error interno al obtener el calendario de eventos"
+        )
+
+
+@router.get(
+    "/yesterday-analysis",
+    response_model=DailyMarketAnalysis,
+    summary="Analiza el cierre de ayer y las sesiones de trading",
+    description="Analiza cómo cerró el instrumento ayer, las sesiones de Asia, Londres y NY, y genera un resumen"
+)
+async def get_yesterday_analysis(
+    instrument: str = Query(
+        "XAUUSD",
+        description="Instrumento a analizar (ej: XAUUSD, EURUSD, NASDAQ)",
+        min_length=3,
+        max_length=10
+    ),
+    service: MarketAnalysisService = Depends(get_market_analysis_service)
+) -> DailyMarketAnalysis:
+    """
+    Endpoint para obtener análisis del cierre de ayer y sesiones de trading
+    @param instrument - Instrumento a analizar (por defecto XAUUSD)
+    @param service - Servicio de análisis de mercado
+    @returns Análisis completo del día anterior
+    """
+    try:
+        logger.info(f"Fetching yesterday analysis for {instrument}")
+        result = await service.analyze_yesterday_sessions(instrument=instrument)
+        logger.info(f"Successfully generated analysis for {instrument}")
+        return result
+    except ValueError as e:
+        logger.warning(f"Invalid request: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error fetching yesterday analysis: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno al obtener el análisis del día anterior"
         )
 

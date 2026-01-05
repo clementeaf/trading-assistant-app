@@ -116,6 +116,50 @@ Obtiene el calendario de eventos del día con horarios, indicando cuáles afecta
 - Campo `affects_usd` para identificar eventos que afectan al USD
 - Filtro automático por `currency = "USD"` (opcional)
 
+#### GET `/api/market-briefing/yesterday-analysis`
+
+Analiza el cierre del día anterior y las sesiones de trading (Asia, Londres, NY).
+
+**Parámetros de consulta:**
+- `instrument` (opcional): Instrumento a analizar (por defecto: XAUUSD). Ejemplos: XAUUSD, EURUSD, NASDAQ
+
+**Ejemplo de respuesta:**
+```json
+{
+  "instrument": "XAUUSD",
+  "date": "2026-01-04",
+  "previous_day_close": 2650.0,
+  "current_day_close": 2648.5,
+  "daily_change_percent": -0.06,
+  "daily_direction": "bajista",
+  "sessions": [
+    {
+      "session": "asia",
+      "start_time": "00:00",
+      "end_time": "06:00",
+      "open_price": 2650.0,
+      "close_price": 2651.5,
+      "high": 2652.0,
+      "low": 2649.0,
+      "range_value": 3.0,
+      "direction": "alcista",
+      "change_percent": 0.06,
+      "broke_previous_high": false,
+      "broke_previous_low": false,
+      "description": "Sesión Asia: rango estrecho, impulso alcista"
+    }
+  ],
+  "summary": "Ayer XAUUSD cerró bajista (-0.06%).\nSesión Asia: rango estrecho, movimiento lateral.\nSesión Londres: rango amplio, fuerte impulso bajista rompiendo el mínimo del día anterior."
+}
+```
+
+**Características:**
+- Análisis de cierre del día anterior
+- Análisis por sesión (Asia: 00:00-06:00 UTC, Londres: 07:00-11:00 UTC, NY: 12:00-21:00 UTC)
+- Cálculo de rango, dirección y cambio porcentual por sesión
+- Detección de ruptura de máximos/mínimos del día anterior
+- Resumen textual automático
+
 ## Despliegue en AWS Lambda
 
 El proyecto está configurado para desplegarse en AWS Lambda usando AWS SAM.
