@@ -11,6 +11,7 @@ from app.config.settings import Settings
 from app.models.market_analysis import DailyMarketAnalysis, PriceCandle, SessionType
 from app.providers.market_data.base_market_provider import MarketDataProvider
 from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
+from app.providers.market_data.twelve_data_provider import TwelveDataProvider
 from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.utils.market_analyzer import MarketAnalyzer
 from app.utils.trading_sessions import TradingSessions
@@ -39,7 +40,17 @@ class MarketAnalysisService:
         """
         provider_name = settings.market_data_provider.lower()
         
-        if provider_name == "alphavantage":
+        if provider_name == "twelvedata":
+            if not settings.market_data_api_key:
+                logger.warning(
+                    "Twelve Data provider selected but no API key configured. "
+                    "Falling back to mock provider."
+                )
+                return MockMarketProvider()
+            
+            logger.info("Using Twelve Data provider for market data (specialized in XAUUSD)")
+            return TwelveDataProvider(api_key=settings.market_data_api_key)
+        elif provider_name == "alphavantage":
             if not settings.market_data_api_key:
                 logger.warning(
                     "Alpha Vantage provider selected but no API key configured. "

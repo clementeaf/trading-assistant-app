@@ -35,9 +35,10 @@ Parameters:
     Type: String
     Default: mock
     AllowedValues:
+      - twelvedata
       - alphavantage
       - mock
-    Description: Provider for market data (alphavantage or mock)
+    Description: Provider for market data (twelvedata recommended for XAUUSD, alphavantage, or mock)
   
   MarketDataApiKey:
     Type: String

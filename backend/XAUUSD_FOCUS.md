@@ -28,15 +28,22 @@ Esta aplicación está **exclusivamente enfocada en XAUUSD (oro)** y los factore
 ## Proveedores de Datos para XAUUSD
 
 ### Estado Actual
+- **Twelve Data**: ✅ **IMPLEMENTADO** - Funciona para XAUUSD en plan gratuito (800 calls/día)
 - **Alpha Vantage**: ❌ NO funciona para XAUUSD en plan gratuito (requiere premium)
-- **Mock Provider**: ✅ Funciona para desarrollo/testing
+- **Mock Provider**: ✅ Funciona para desarrollo/testing (fallback automático)
+
+### Proveedores Implementados
+1. **Twelve Data** ✅ - **RECOMENDADO** - Especializado en metales preciosos, incluyendo XAUUSD
+   - Plan gratuito: 800 calls/día, 2 calls/segundo
+   - Soporta datos históricos intradía y diarios
+   - Configuración: `MARKET_DATA_PROVIDER=twelvedata`
+   - Obtener API key: https://twelvedata.com/
 
 ### Proveedores a Evaluar (Futuro)
-1. **Twelve Data** - Tiene datos de metales preciosos
-2. **Metals API** - Específico para oro y metales
-3. **OANDA** - Tiene XAU/USD disponible
-4. **Polygon.io** - Datos de mercado completos
-5. **FXCM Data** - Datos históricos de XAUUSD
+1. **Metals API** - Específico para oro y metales
+2. **OANDA** - Tiene XAU/USD disponible
+3. **Polygon.io** - Datos de mercado completos
+4. **FXCM Data** - Datos históricos de XAUUSD
 
 ## Prioridades de Desarrollo
 
@@ -44,11 +51,15 @@ Esta aplicación está **exclusivamente enfocada en XAUUSD (oro)** y los factore
 2. ✅ Análisis de sesiones de trading (Asia, Londres, NY)
 3. ✅ Análisis de alineación DXY-Bonos
 4. ✅ Recomendación de modo de trading
-5. ⏳ Proveedor real de datos para XAUUSD (pendiente)
+5. ✅ Proveedor real de datos para XAUUSD (Twelve Data implementado)
+6. ⏳ Evaluar y probar Twelve Data con API key real
+7. ⏳ Considerar proveedores adicionales si es necesario
 
 ## Notas Técnicas
 
+- **Twelve Data** es el proveedor recomendado para XAUUSD (implementado y listo para usar)
 - El mock provider genera datos realistas para XAUUSD (rango típico: 1800-2800 USD/oz)
-- Alpha Vantage se intenta usar primero, pero hace fallback automático a mock
+- Alpha Vantage se intenta usar si está configurado, pero hace fallback automático a mock
 - Todos los análisis están optimizados para XAUUSD específicamente
+- El sistema intenta usar el proveedor configurado y hace fallback automático si falla
 
