@@ -133,7 +133,13 @@ class FredProvider(MarketDataProvider):
         # FRED devuelve los datos en "observations"
         observations = data.get("observations", [])
         
-        if not observations:
+        # Filtrar observaciones válidas (que no sean ".")
+        valid_observations = [
+            obs for obs in observations 
+            if obs.get("value") and obs.get("value") != "."
+        ]
+        
+        if not valid_observations:
             raise ValueError(f"No data available for series {series_id} in the specified date range")
         
         candles: list[PriceCandle] = []

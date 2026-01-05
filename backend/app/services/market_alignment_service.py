@@ -73,12 +73,14 @@ class MarketAlignmentService:
         @returns Análisis de alineación
         """
         today = datetime.now().date()
+        # FRED puede tener delay en datos, intentar con fechas más antiguas si no hay datos
         yesterday = today - timedelta(days=1)
         day_before = yesterday - timedelta(days=1)
         
         logger.info(f"Analyzing alignment between DXY and {bond_symbol}")
         
         # Obtener datos de DXY
+        # Intentar con fechas más antiguas si no hay datos disponibles
         dxy_yesterday_start = datetime.combine(yesterday, datetime.min.time())
         dxy_yesterday_end = datetime.combine(yesterday, datetime.max.time())
         dxy_day_before_start = datetime.combine(day_before, datetime.min.time())
@@ -88,32 +90,58 @@ class MarketAlignmentService:
         dxy_provider = self._get_dxy_bond_provider()
         bond_provider = self._get_dxy_bond_provider()
         
-        try:
-            dxy_yesterday_candles = await dxy_provider.fetch_historical_candles(
-                "DXY", dxy_yesterday_start, dxy_yesterday_end, "1h"
-            )
-            dxy_day_before_candles = await dxy_provider.fetch_historical_candles(
-                "DXY", dxy_day_before_start, dxy_day_before_end, "1h"
-            )
-        except (ValueError, Exception) as e:
-            logger.error(f"Could not fetch DXY data: {str(e)}")
-            raise ValueError(
-                f"DXY data is not available. "
-                "Please configure FRED_API_KEY for DXY data (free at https://fred.stlouisfed.org/docs/api/api_key.html)."
-            )
+        # FRED solo tiene datos en días hábiles, buscar un rango amplio y tomar los últimos disponibles
+        # Buscar datos de los últimos 30 días para encontrar los días hábiles más recientes
+        range_start = today - timedelta(days=30)
+        range_end = today
+        
+        range_start_dt = datetime.combine(range_start, datetime.min.time())
+        range_end_dt = datetime.combine(range_end, datetime.max.time())
         
         try:
-            bond_yesterday_candles = await bond_provider.fetch_historical_candles(
-                bond_symbol, dxy_yesterday_start, dxy_yesterday_end, "1h"
+            # Obtener todos los datos disponibles en el rango
+            dxy_all_candles = await dxy_provider.fetch_historical_candles(
+                "DXY", range_start_dt, range_end_dt, "1d"
             )
-            bond_day_before_candles = await bond_provider.fetch_historical_candles(
-                bond_symbol, dxy_day_before_start, dxy_day_before_end, "1h"
+            bond_all_candles = await bond_provider.fetch_historical_candles(
+                bond_symbol, range_start_dt, range_end_dt, "1d"
+            )
+            
+            if not dxy_all_candles or len(dxy_all_candles) < 2:
+                raise ValueError("Not enough DXY data available from FRED")
+            if not bond_all_candles or len(bond_all_candles) < 2:
+                raise ValueError(f"Not enough {bond_symbol} data available from FRED")
+            
+            # Tomar los dos últimos días disponibles (días hábiles más recientes)
+            dxy_yesterday_candles = [dxy_all_candles[-1]]
+            dxy_day_before_candles = [dxy_all_candles[-2]]
+            bond_yesterday_candles = [bond_all_candles[-1]]
+            bond_day_before_candles = [bond_all_candles[-2]]
+            
+            logger.info(
+                f"Using most recent available data: "
+                f"DXY from {dxy_all_candles[-1].timestamp.date()}, "
+                f"{bond_symbol} from {bond_all_candles[-1].timestamp.date()}"
             )
         except (ValueError, Exception) as e:
-            logger.error(f"Could not fetch {bond_symbol} data: {str(e)}")
+            logger.error(f"Could not fetch data from FRED: {str(e)}")
             raise ValueError(
-                f"{bond_symbol} data is not available. "
-                "Please configure FRED_API_KEY for bond data (free at https://fred.stlouisfed.org/docs/api/api_key.html)."
+                f"Data is not available from FRED. "
+                f"Please verify FRED_API_KEY is correct and data is available. Error: {str(e)}"
+            )
+        
+        if not dxy_yesterday_candles or not dxy_day_before_candles:
+            logger.error("Could not fetch DXY data from FRED")
+            raise ValueError(
+                f"DXY data is not available from FRED. "
+                "Please verify FRED_API_KEY is correct and data is available for the requested dates."
+            )
+        
+        if not bond_yesterday_candles or not bond_day_before_candles:
+            logger.error(f"Could not fetch {bond_symbol} data from FRED")
+            raise ValueError(
+                f"{bond_symbol} data is not available from FRED. "
+                "Please verify FRED_API_KEY is correct and data is available for the requested dates."
             )
         
         if not dxy_yesterday_candles or not dxy_day_before_candles:
