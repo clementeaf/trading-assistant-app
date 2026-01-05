@@ -1,0 +1,46 @@
+"""
+Configuración de la aplicación
+"""
+from typing import Optional
+
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    """Configuración de la aplicación"""
+    
+    # API de calendario económico
+    economic_calendar_api_key: Optional[str] = Field(
+        default=None,
+        description="API key para el servicio de calendario económico"
+    )
+    economic_calendar_api_url: str = Field(
+        default="https://api.tradingeconomics.com/calendar",
+        description="URL base de la API de calendario económico"
+    )
+    
+    # Configuración de AWS Lambda
+    aws_region: str = Field(default="us-east-1", description="Región de AWS")
+    stage: str = Field(default="dev", description="Etapa de despliegue")
+    
+    # Configuración de filtros por defecto
+    default_currency: Optional[str] = Field(
+        default="USD",
+        description="Moneda por defecto para filtrar eventos"
+    )
+    
+    class Config:
+        """Configuración de Pydantic"""
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+
+
+def get_settings() -> Settings:
+    """
+    Obtiene la configuración de la aplicación
+    @returns Instancia de Settings
+    """
+    return Settings()
+

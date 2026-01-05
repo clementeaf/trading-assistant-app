@@ -1,11 +1,8 @@
 """
-Aplicación FastAPI básica para Trading Assistant App
+Punto de entrada para AWS Lambda
 """
-from fastapi import FastAPI
+from mangum import Mangum
 
-app = FastAPI(
-    title="Trading Assistant App",
-    description="Aplicación de asistente para trading",
-    version="1.0.0"
-)
+from app.main import app
 
+handler = Mangum(app, lifespan="off")
