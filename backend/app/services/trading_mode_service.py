@@ -5,6 +5,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
+from sqlalchemy.orm import Session
+
 from app.config.settings import Settings
 from app.models.economic_calendar import EconomicEvent, ImpactLevel
 from app.models.market_alignment import MarketAlignmentAnalysis
@@ -29,7 +31,8 @@ class TradingModeService:
         settings: Settings,
         economic_calendar_service: EconomicCalendarService,
         market_analysis_service: MarketAnalysisService,
-        market_alignment_service: MarketAlignmentService
+        market_alignment_service: MarketAlignmentService,
+        db: Optional[Session] = None
     ):
         """
         Inicializa el servicio de modo de trading
@@ -37,11 +40,13 @@ class TradingModeService:
         @param economic_calendar_service - Servicio de calendario económico
         @param market_analysis_service - Servicio de análisis de mercado
         @param market_alignment_service - Servicio de alineación de mercado
+        @param db - Sesión de base de datos (opcional)
         """
         self.settings = settings
         self.economic_calendar_service = economic_calendar_service
         self.market_analysis_service = market_analysis_service
         self.market_alignment_service = market_alignment_service
+        self.db = db
     
     async def get_trading_mode_recommendation(
         self,
@@ -148,13 +153,28 @@ class TradingModeService:
             final_mode, reasons, upcoming_news, alignment_analysis, yesterday_analysis
         )
         
-        return TradingModeRecommendation(
+        recommendation = TradingModeRecommendation(
             mode=final_mode,
             confidence=round(confidence, 2),
             reasons=reasons,
             summary=summary,
             detailed_explanation=detailed_explanation
         )
+        
+        # Guardar recomendación en base de datos si está disponible
+        if self.db:
+            try:
+                from app.repositories.analysis_repository import AnalysisRepository
+                analysis_repo = AnalysisRepository(self.db)
+                analysis_repo.save_trading_mode_recommendation(
+                    recommendation=recommendation,
+                    instrument=instrument,
+                    bond_symbol=bond_symbol
+                )
+            except Exception as e:
+                logger.warning(f"Error saving recommendation to database: {str(e)}")
+        
+        return recommendation
     
     def _get_upcoming_high_impact_news(
         self,

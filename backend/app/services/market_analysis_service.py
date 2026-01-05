@@ -5,6 +5,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
+from sqlalchemy.orm import Session
+
 from app.config.settings import Settings
 from app.models.market_analysis import DailyMarketAnalysis, PriceCandle, SessionType
 from app.providers.market_data.base_market_provider import MarketDataProvider
@@ -18,13 +20,15 @@ logger = logging.getLogger(__name__)
 class MarketAnalysisService:
     """Servicio para analizar datos de mercado"""
     
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, db: Optional[Session] = None):
         """
         Inicializa el servicio de análisis de mercado
         @param settings - Configuración de la aplicación
+        @param db - Sesión de base de datos (opcional)
         """
         self.settings = settings
         self.provider = self._create_provider(settings)
+        self.db = db
     
     def _create_provider(self, settings: Settings) -> MarketDataProvider:
         """

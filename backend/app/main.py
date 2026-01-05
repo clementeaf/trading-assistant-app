@@ -7,10 +7,20 @@ from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.db.models import Base
+from app.db.session import engine
 from app.routers import market_briefing
 from app.utils.logging_config import setup_logging
 
 setup_logging(os.getenv("LOG_LEVEL", "INFO"))
+
+# Crear tablas si no existen (solo en desarrollo y si hay DB configurada)
+if engine and os.getenv("STAGE", "dev") == "dev":
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Warning: Could not create tables automatically: {e}")
+        print("Run 'alembic upgrade head' to create tables")
 
 app = FastAPI(
     title="Trading Assistant App",

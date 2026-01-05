@@ -40,6 +40,12 @@ class Settings(BaseSettings):
         description="URL del frontend para CORS"
     )
     
+    # Configuración de base de datos
+    database_url: Optional[str] = Field(
+        default=None,
+        description="URL de conexión a PostgreSQL (ej: postgresql://user:pass@host:port/db)"
+    )
+    
     class Config:
         """Configuración de Pydantic"""
         env_file = ".env"
