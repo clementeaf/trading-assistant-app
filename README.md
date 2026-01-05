@@ -77,12 +77,60 @@ Verifica si hay noticias económicas de alto impacto hoy (NFP, CPI, Fed, PMI...)
 
 ## Despliegue en AWS Lambda
 
-El proyecto está configurado para desplegarse en AWS Lambda usando AWS SAM:
+El proyecto está configurado para desplegarse en AWS Lambda usando AWS SAM.
+
+### Prerrequisitos
+
+1. AWS CLI instalado y configurado
+2. AWS SAM CLI instalado
+3. Credenciales de AWS configuradas
+
+### Instalación de dependencias para Lambda
 
 ```bash
-sam build
-sam deploy --guided
+cd backend
+pip install -r requirements-lambda.txt
 ```
 
-La configuración está en `template.yaml`.
+### Construcción y despliegue
+
+```bash
+# Construir el proyecto
+sam build
+
+# Desplegar (modo guiado)
+sam deploy --guided
+
+# O usar el Makefile
+make build
+make deploy
+```
+
+### Configuración de despliegue
+
+El archivo `samconfig.toml` contiene la configuración por defecto. Puedes modificar los parámetros:
+
+- `Stage`: Etapa de despliegue (dev, staging, prod)
+- `EconomicCalendarProvider`: Proveedor a usar (tradingeconomics o mock)
+- `EconomicCalendarApiKey`: API key (opcional, requerido solo para tradingeconomics)
+
+### Variables de entorno en Lambda
+
+Las siguientes variables se configuran automáticamente:
+- `ECONOMIC_CALENDAR_PROVIDER`: Proveedor de calendario económico
+- `ECONOMIC_CALENDAR_API_KEY`: API key (si se proporciona)
+- `ECONOMIC_CALENDAR_API_URL`: URL de la API
+- `DEFAULT_CURRENCY`: Moneda por defecto (USD)
+- `LOG_LEVEL`: Nivel de logging (INFO)
+- `STAGE`: Etapa de despliegue
+
+### Verificación post-despliegue
+
+Una vez desplegado, obtendrás una URL de API Gateway. Prueba el endpoint:
+
+```bash
+curl https://YOUR_API_URL/api/market-briefing/high-impact-news
+```
+
+La configuración está en `template.yaml` y `samconfig.toml`.
 
