@@ -33,17 +33,16 @@ Parameters:
   
   MarketDataProvider:
     Type: String
-    Default: mock
+    Default: twelvedata
     AllowedValues:
       - twelvedata
       - alphavantage
-      - mock
-    Description: Provider for market data (twelvedata recommended for XAUUSD, alphavantage, or mock)
+    Description: Provider for market data (twelvedata recommended for XAUUSD, alphavantage)
   
   MarketDataApiKey:
     Type: String
     Default: ""
-    Description: API Key for Market Data service (Alpha Vantage API key, leave empty to use mock provider)
+    Description: API Key for Market Data service (Twelve Data or Alpha Vantage API key, required for real data)
     NoEcho: true
 
 Resources:
