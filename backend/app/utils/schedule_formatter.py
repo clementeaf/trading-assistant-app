@@ -45,4 +45,21 @@ class ScheduleFormatter:
         @returns Lista de EventScheduleItem formateados
         """
         return [cls.format_event(event) for event in events]
+    
+    @classmethod
+    def format_events_for_schedule(
+        cls,
+        events: list[EconomicEvent],
+        currency: str = "USD"
+    ) -> list[EventScheduleItem]:
+        """
+        Formatea eventos para el calendario de eventos
+        @param events - Lista de eventos económicos
+        @param currency - Moneda para determinar si afecta USD
+        @returns Lista de EventScheduleItem formateados y ordenados
+        """
+        formatted = [cls.format_event(event) for event in events]
+        # Ordenar por hora
+        formatted.sort(key=lambda x: x.time)
+        return formatted
 

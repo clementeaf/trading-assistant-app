@@ -51,12 +51,14 @@ class TradingModeService:
     async def get_trading_mode_recommendation(
         self,
         instrument: str = "XAUUSD",
-        bond_symbol: str = "US10Y"
+        bond_symbol: str = "US10Y",
+        time_window_minutes: int = 120
     ) -> TradingModeRecommendation:
         """
         Obtiene la recomendación de modo de trading
         @param instrument - Instrumento a analizar (por defecto XAUUSD)
         @param bond_symbol - Símbolo del bono para análisis de alineación
+        @param time_window_minutes - Ventana de tiempo en minutos para considerar noticias próximas
         @returns Recomendación de modo de trading
         """
         logger.info(f"Generating trading mode recommendation for {instrument}")
@@ -75,12 +77,14 @@ class TradingModeService:
             TradingMode.OBSERVE: 0.0
         }
         
-        # Regla 1: Noticias de alto impacto USD en próximas 2 horas → CALMA
-        upcoming_news = self._get_upcoming_high_impact_news(high_impact_news.events, hours=2)
+        # Regla 1: Noticias de alto impacto USD en próximas X horas → CALMA
+        hours = time_window_minutes / 60
+        upcoming_news = self._get_upcoming_high_impact_news(high_impact_news.events, hours=hours)
         if upcoming_news:
+            hours_str = f"{int(hours)} horas" if hours >= 1 else f"{time_window_minutes} minutos"
             reasons.append(TradingModeReason(
                 rule_name="Noticias próximas",
-                description=f"{len(upcoming_news)} noticia(s) de alto impacto USD en las próximas 2 horas",
+                description=f"{len(upcoming_news)} noticia(s) de alto impacto USD en las próximas {hours_str}",
                 priority=10
             ))
             mode_scores[TradingMode.CALM] += 8.0

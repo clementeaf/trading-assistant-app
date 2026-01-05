@@ -43,3 +43,59 @@ class CurrencyValidator:
         
         return currency_upper
 
+
+class InstrumentValidator:
+    """Validador para símbolos de instrumentos financieros"""
+    
+    VALID_BONDS = {"US02Y", "US10Y", "US30Y"}
+    BOND_PATTERN = re.compile(r"^US(02|10|30)Y$")
+    INSTRUMENT_PATTERN = re.compile(r"^[A-Z0-9]{3,10}$")
+    
+    @classmethod
+    def validate_instrument(cls, instrument: str) -> str:
+        """
+        Valida un símbolo de instrumento
+        @param instrument - Símbolo del instrumento a validar
+        @returns Símbolo validado en mayúsculas
+        @raises ValueError si el símbolo no es válido
+        """
+        if not instrument:
+            raise ValueError("Instrument symbol cannot be empty")
+        
+        instrument_upper = instrument.upper().strip()
+        
+        if not cls.INSTRUMENT_PATTERN.match(instrument_upper):
+            raise ValueError(
+                f"Invalid instrument symbol format: {instrument}. "
+                f"Expected 3-10 alphanumeric characters (e.g., XAUUSD, EURUSD, NASDAQ)"
+            )
+        
+        return instrument_upper
+    
+    @classmethod
+    def validate_bond_symbol(cls, bond: str) -> str:
+        """
+        Valida un símbolo de bono
+        @param bond - Símbolo del bono a validar
+        @returns Símbolo validado en mayúsculas
+        @raises ValueError si el símbolo no es válido
+        """
+        if not bond:
+            raise ValueError("Bond symbol cannot be empty")
+        
+        bond_upper = bond.upper().strip()
+        
+        if not cls.BOND_PATTERN.match(bond_upper):
+            raise ValueError(
+                f"Invalid bond symbol: {bond}. "
+                f"Expected one of: US02Y, US10Y, US30Y"
+            )
+        
+        if bond_upper not in cls.VALID_BONDS:
+            raise ValueError(
+                f"Unsupported bond symbol: {bond_upper}. "
+                f"Supported bonds: {', '.join(sorted(cls.VALID_BONDS))}"
+            )
+        
+        return bond_upper
+
