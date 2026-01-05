@@ -1,3 +1,4 @@
+import axios from "axios";
 import type {
   DailyMarketAnalysis,
   EventScheduleResponse,
@@ -8,7 +9,16 @@ import type {
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
-  "https://yx1x1mom8i.execute-api.us-east-1.amazonaws.com";
+  (import.meta.env.DEV
+    ? "http://localhost:8000"
+    : "https://yx1x1mom8i.execute-api.us-east-1.amazonaws.com");
+
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
 /**
  * Obtiene noticias de alto impacto para XAUUSD del día actual
@@ -18,17 +28,13 @@ const API_BASE_URL =
 export async function getHighImpactNews(
   currency?: string
 ): Promise<HighImpactNewsResponse> {
-  const url = new URL(`${API_BASE_URL}/api/market-briefing/high-impact-news`);
-  if (currency) {
-    url.searchParams.set("currency", currency);
-  }
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`Error fetching high impact news: ${response.statusText}`);
-  }
-
-  return response.json();
+  const response = await apiClient.get<HighImpactNewsResponse>(
+    "/api/market-briefing/high-impact-news",
+    {
+      params: currency ? { currency } : undefined,
+    }
+  );
+  return response.data;
 }
 
 /**
@@ -39,17 +45,13 @@ export async function getHighImpactNews(
 export async function getEventSchedule(
   currency?: string
 ): Promise<EventScheduleResponse> {
-  const url = new URL(`${API_BASE_URL}/api/market-briefing/event-schedule`);
-  if (currency) {
-    url.searchParams.set("currency", currency);
-  }
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`Error fetching event schedule: ${response.statusText}`);
-  }
-
-  return response.json();
+  const response = await apiClient.get<EventScheduleResponse>(
+    "/api/market-briefing/event-schedule",
+    {
+      params: currency ? { currency } : undefined,
+    }
+  );
+  return response.data;
 }
 
 /**
@@ -60,15 +62,13 @@ export async function getEventSchedule(
 export async function getYesterdayAnalysis(
   instrument: string
 ): Promise<DailyMarketAnalysis> {
-  const url = new URL(`${API_BASE_URL}/api/market-briefing/yesterday-analysis`);
-  url.searchParams.set("instrument", instrument);
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`Error fetching yesterday analysis: ${response.statusText}`);
-  }
-
-  return response.json();
+  const response = await apiClient.get<DailyMarketAnalysis>(
+    "/api/market-briefing/yesterday-analysis",
+    {
+      params: { instrument },
+    }
+  );
+  return response.data;
 }
 
 /**
@@ -79,15 +79,13 @@ export async function getYesterdayAnalysis(
 export async function getDxyBondAlignment(
   bond: string = "US10Y"
 ): Promise<MarketAlignmentAnalysis> {
-  const url = new URL(`${API_BASE_URL}/api/market-briefing/dxy-bond-alignment`);
-  url.searchParams.set("bond", bond);
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`Error fetching DXY-Bond alignment: ${response.statusText}`);
-  }
-
-  return response.json();
+  const response = await apiClient.get<MarketAlignmentAnalysis>(
+    "/api/market-briefing/dxy-bond-alignment",
+    {
+      params: { bond },
+    }
+  );
+  return response.data;
 }
 
 /**
@@ -102,18 +100,16 @@ export async function getTradingModeRecommendation(
   bond: string = "US10Y",
   timeWindowMinutes: number = 120
 ): Promise<TradingModeRecommendation> {
-  const url = new URL(`${API_BASE_URL}/api/market-briefing/trading-mode`);
-  url.searchParams.set("instrument", instrument);
-  url.searchParams.set("bond", bond);
-  url.searchParams.set("time_window_minutes", timeWindowMinutes.toString());
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(
-      `Error fetching trading mode recommendation: ${response.statusText}`
-    );
-  }
-
-  return response.json();
+  const response = await apiClient.get<TradingModeRecommendation>(
+    "/api/market-briefing/trading-mode",
+    {
+      params: {
+        instrument,
+        bond,
+        time_window_minutes: timeWindowMinutes,
+      },
+    }
+  );
+  return response.data;
 }
 

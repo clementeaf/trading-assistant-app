@@ -34,6 +34,12 @@ class Settings(BaseSettings):
         description="Moneda por defecto para filtrar eventos"
     )
     
+    # Configuración de CORS
+    frontend_url: Optional[str] = Field(
+        default=None,
+        description="URL del frontend para CORS"
+    )
+    
     class Config:
         """Configuración de Pydantic"""
         env_file = ".env"
