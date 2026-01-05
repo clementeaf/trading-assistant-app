@@ -10,9 +10,11 @@ from app.config.settings import Settings, get_settings
 from app.models.economic_calendar import EventScheduleResponse, HighImpactNewsResponse
 from app.models.market_analysis import DailyMarketAnalysis
 from app.models.market_alignment import MarketAlignmentAnalysis
+from app.models.trading_mode import TradingModeRecommendation
 from app.services.economic_calendar_service import EconomicCalendarService
 from app.services.market_analysis_service import MarketAnalysisService
 from app.services.market_alignment_service import MarketAlignmentService
+from app.services.trading_mode_service import TradingModeService
 from app.utils.schedule_formatter import ScheduleFormatter
 from app.utils.validators import CurrencyValidator
 
@@ -52,6 +54,28 @@ def get_market_alignment_service(
     @returns Instancia del servicio de alineación de mercado
     """
     return MarketAlignmentService(settings)
+
+
+def get_trading_mode_service(
+    economic_calendar_service: EconomicCalendarService = Depends(get_economic_calendar_service),
+    market_analysis_service: MarketAnalysisService = Depends(get_market_analysis_service),
+    market_alignment_service: MarketAlignmentService = Depends(get_market_alignment_service),
+    settings: Settings = Depends(get_settings)
+) -> TradingModeService:
+    """
+    Dependency para obtener el servicio de modo de trading
+    @param economic_calendar_service - Servicio de calendario económico
+    @param market_analysis_service - Servicio de análisis de mercado
+    @param market_alignment_service - Servicio de alineación de mercado
+    @param settings - Configuración de la aplicación
+    @returns Instancia del servicio de modo de trading
+    """
+    return TradingModeService(
+        settings=settings,
+        economic_calendar_service=economic_calendar_service,
+        market_analysis_service=market_analysis_service,
+        market_alignment_service=market_alignment_service
+    )
 
 
 @router.get(
@@ -242,5 +266,52 @@ async def get_dxy_bond_alignment(
         raise HTTPException(
             status_code=500,
             detail="Error interno al obtener el análisis de alineación"
+        )
+
+
+@router.get(
+    "/trading-mode",
+    response_model=TradingModeRecommendation,
+    summary="Recomendación de modo de trading",
+    description="Determina si hoy es un día para operar con calma o con agresividad basado en reglas programadas"
+)
+async def get_trading_mode_recommendation(
+    instrument: str = Query(
+        "XAUUSD",
+        description="Instrumento a analizar (por defecto: XAUUSD)",
+        min_length=3,
+        max_length=10
+    ),
+    bond: str = Query(
+        "US10Y",
+        description="Símbolo del bono para análisis de alineación (por defecto: US10Y)",
+        min_length=4,
+        max_length=10
+    ),
+    service: TradingModeService = Depends(get_trading_mode_service)
+) -> TradingModeRecommendation:
+    """
+    Endpoint para obtener recomendación de modo de trading
+    @param instrument - Instrumento a analizar (por defecto XAUUSD)
+    @param bond - Símbolo del bono para análisis de alineación (por defecto US10Y)
+    @param service - Servicio de modo de trading
+    @returns Recomendación de modo de trading con razones
+    """
+    try:
+        logger.info(f"Fetching trading mode recommendation for {instrument}")
+        result = await service.get_trading_mode_recommendation(
+            instrument=instrument,
+            bond_symbol=bond
+        )
+        logger.info(
+            f"Trading mode recommendation: {result.mode.value} "
+            f"(confidence: {result.confidence})"
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Unexpected error fetching trading mode: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno al obtener la recomendación de modo de trading"
         )
 

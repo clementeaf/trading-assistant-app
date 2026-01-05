@@ -201,6 +201,49 @@ Analiza la alineación entre el DXY (índice del dólar) y los bonos (US10Y, US0
 - Identifica sesgo del mercado (risk-off/risk-on/mixto)
 - Resumen textual automático con formato exacto
 
+#### GET `/api/market-briefing/trading-mode`
+
+Recomendación de modo de trading basada en reglas programadas (calma/agresivo).
+
+**Parámetros de consulta:**
+- `instrument` (opcional): Instrumento a analizar (por defecto: XAUUSD)
+- `bond` (opcional): Símbolo del bono para análisis de alineación (por defecto: US10Y)
+
+**Ejemplo de respuesta:**
+```json
+{
+  "mode": "calma",
+  "confidence": 0.75,
+  "reasons": [
+    {
+      "rule_name": "Noticias próximas",
+      "description": "1 noticia(s) de alto impacto USD en las próximas 2 horas",
+      "priority": 10
+    },
+    {
+      "rule_name": "Conflicto + sesiones mixtas + noticias",
+      "description": "DXY y US10Y en conflicto, sesiones mixtas ayer, y hay noticias de alto impacto",
+      "priority": 10
+    }
+  ],
+  "summary": "Modo sugerido hoy: Calma.",
+  "detailed_explanation": "Modo sugerido hoy: Calma.\nMotivos:\n• NFP en 2 horas (alto impacto USD).\n• DXY y US10Y en conflicto.\n• Ayer hubo alta volatilidad en NY con rango amplio."
+}
+```
+
+**Reglas implementadas:**
+- **Noticias próximas**: Si hay noticias de alto impacto USD en próximas 2 horas → CALMA
+- **Volatilidad + Alineación**: Si rango alto ayer + DXY y bonos alineados → AGRESIVO
+- **Conflicto + Mixto + Noticias**: Si DXY y bonos en conflicto + sesiones mixtas + noticias → MUY CALMA/OBSERVAR
+- **Múltiples noticias**: Si hay 3+ noticias de alto impacto → CALMA
+- **Condiciones favorables**: Sin noticias + baja volatilidad + alineación clara → AGRESIVO
+
+**Características:**
+- Sistema de reglas programables
+- Integración con noticias, análisis de ayer y alineación DXY-bonos
+- Nivel de confianza calculado
+- Explicación detallada con motivos específicos
+
 ## Despliegue en AWS Lambda
 
 El proyecto está configurado para desplegarse en AWS Lambda usando AWS SAM.
