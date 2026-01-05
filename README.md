@@ -43,22 +43,25 @@ Edita `.env` y configura tus API keys:
 
 ### Proveedores de Datos de Mercado
 
-La aplicación soporta múltiples proveedores de datos de mercado:
+**IMPORTANTE**: Esta aplicación está **exclusivamente enfocada en XAUUSD (oro)** y factores que lo impactan.
 
-**Alpha Vantage** (Recomendado para Forex):
+**Alpha Vantage** (Limitado para XAUUSD):
+- ❌ **NO funciona para XAUUSD en plan gratuito** (requiere premium)
 - Plan gratuito: 5 calls/min, 500 calls/día
-- Excelente para pares de divisas (XAUUSD, EURUSD, etc.)
-- Obtén tu API key: https://www.alphavantage.co/support/#api-key
-- Configuración: `MARKET_DATA_PROVIDER=alphavantage`
+- FX_INTRADAY y FX_DAILY para XAU/USD requieren plan premium
+- La app intenta usar Alpha Vantage pero hace fallback automático a mock
 
-**Mock Provider** (Desarrollo):
-- Datos simulados para testing
+**Mock Provider** (Actualmente en uso):
+- Datos simulados realistas para XAUUSD
 - No requiere API key
 - Configuración: `MARKET_DATA_PROVIDER=mock`
+- **Recomendado** hasta encontrar un proveedor gratuito para XAUUSD
 
-**Nota**: Alpha Vantage no soporta directamente DXY, bonos (US10Y, US02Y, US30Y) ni índices (NASDAQ). Para estos instrumentos, la aplicación usa automáticamente el mock provider como fallback.
+**Nota**: Para DXY, bonos (US10Y, US02Y, US30Y) e índices (NASDAQ) - que impactan XAUUSD - la aplicación usa automáticamente el mock provider como fallback.
 
-Ver `backend/MARKET_DATA_PROVIDERS.md` para más detalles.
+**Futuros proveedores a evaluar para XAUUSD**: Twelve Data, Metals API, OANDA, Polygon.io
+
+Ver `backend/XAUUSD_FOCUS.md` y `backend/MARKET_DATA_PROVIDERS.md` para más detalles.
 
 ## Uso Local
 
