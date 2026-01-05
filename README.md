@@ -60,7 +60,7 @@ Una vez que la aplicación esté corriendo, puedes acceder a:
 
 #### GET `/api/market-briefing/high-impact-news`
 
-Verifica si hay noticias económicas de alto impacto hoy (NFP, CPI, Fed, PMI...)
+Verifica si hay noticias económicas de alto impacto hoy relevantes para XAUUSD (NFP, CPI, Fed, PMI...)
 
 **Parámetros de consulta:**
 - `currency` (opcional): Moneda para filtrar (por defecto: USD)
@@ -71,9 +71,50 @@ Verifica si hay noticias económicas de alto impacto hoy (NFP, CPI, Fed, PMI...)
   "has_high_impact_news": true,
   "count": 3,
   "events": [...],
-  "summary": "Hoy hay 3 noticias de alto impacto: NFP, PMI manufacturero y Declaración de la Fed."
+  "summary": "Hoy hay 3 noticias de alto impacto para XAUUSD: NFP, PMI manufacturero y Declaración de la Fed.",
+  "instrument": "XAUUSD"
 }
 ```
+
+#### GET `/api/market-briefing/event-schedule`
+
+Obtiene el calendario de eventos del día con horarios, indicando cuáles afectan al USD.
+
+**Parámetros de consulta:**
+- `currency` (opcional): Moneda para filtrar (por defecto: USD)
+
+**Ejemplo de respuesta:**
+```json
+{
+  "date": "2026-01-05",
+  "events": [
+    {
+      "time": "10:30",
+      "description": "NFP - Non-Farm Payrolls",
+      "currency": "USD",
+      "impact": "Alto impacto",
+      "affects_usd": true,
+      "full_description": "10:30 – NFP - Non-Farm Payrolls – USD – Alto impacto"
+    },
+    {
+      "time": "12:00",
+      "description": "ISM PMI Manufacturero",
+      "currency": "USD",
+      "impact": "Alto impacto",
+      "affects_usd": true,
+      "full_description": "12:00 – ISM PMI Manufacturero – USD – Alto impacto"
+    }
+  ],
+  "usd_events_count": 2,
+  "total_events": 2
+}
+```
+
+**Características:**
+- Lista ordenada por hora
+- Formato: `HH:MM – Descripción – Moneda – Impacto`
+- Campo `affects_usd` para identificar eventos que afectan al USD
+- Filtro automático por `currency = "USD"` (opcional)
 
 ## Despliegue en AWS Lambda
 

@@ -25,10 +25,12 @@ class MockProvider(EconomicCalendarProvider):
         mock_events: list[EconomicEvent] = []
         
         if target_date == date.today():
-            # Eventos relevantes para XAUUSD
+            # Eventos relevantes para XAUUSD con diferentes horarios
+            from datetime import time
+            
             mock_events.append(
                 EconomicEvent(
-                    date=datetime.combine(target_date, datetime.min.time()),
+                    date=datetime.combine(target_date, time(10, 30)),
                     importance=ImpactLevel.HIGH,
                     currency=currency or "USD",
                     description="NFP - Non-Farm Payrolls",
@@ -37,7 +39,16 @@ class MockProvider(EconomicCalendarProvider):
             )
             mock_events.append(
                 EconomicEvent(
-                    date=datetime.combine(target_date, datetime.min.time()),
+                    date=datetime.combine(target_date, time(12, 0)),
+                    importance=ImpactLevel.HIGH,
+                    currency=currency or "USD",
+                    description="ISM PMI Manufacturero",
+                    country="US"
+                )
+            )
+            mock_events.append(
+                EconomicEvent(
+                    date=datetime.combine(target_date, time(14, 0)),
                     importance=ImpactLevel.HIGH,
                     currency=currency or "USD",
                     description="CPI - Consumer Price Index",
@@ -46,7 +57,7 @@ class MockProvider(EconomicCalendarProvider):
             )
             mock_events.append(
                 EconomicEvent(
-                    date=datetime.combine(target_date, datetime.min.time()),
+                    date=datetime.combine(target_date, time(18, 0)),
                     importance=ImpactLevel.HIGH,
                     currency=currency or "USD",
                     description="FOMC Rate Decision",

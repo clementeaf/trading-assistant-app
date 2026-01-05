@@ -35,3 +35,21 @@ class HighImpactNewsResponse(BaseModel):
     summary: str = Field(..., description="Resumen textual de las noticias relevantes para XAUUSD")
     instrument: str = Field(default="XAUUSD", description="Instrumento financiero al que aplican las noticias")
 
+
+class EventScheduleItem(BaseModel):
+    """Item individual del calendario de eventos"""
+    time: str = Field(..., description="Hora del evento en formato HH:MM")
+    description: str = Field(..., description="Descripción del evento (NFP, CPI, FOMC, PMI...)")
+    currency: str = Field(..., description="Moneda relacionada (USD, EUR, etc.)")
+    impact: str = Field(..., description="Nivel de impacto (Alto impacto, Medio impacto, Bajo impacto)")
+    affects_usd: bool = Field(..., description="Indica si el evento afecta al USD")
+    full_description: str = Field(..., description="Descripción completa formateada: 'HH:MM – Descripción – Moneda – Impacto'")
+
+
+class EventScheduleResponse(BaseModel):
+    """Respuesta del calendario de eventos con horarios"""
+    date: str = Field(..., description="Fecha de los eventos (YYYY-MM-DD)")
+    events: list[EventScheduleItem] = Field(..., description="Lista de eventos ordenados por hora")
+    usd_events_count: int = Field(..., description="Cantidad de eventos que afectan al USD")
+    total_events: int = Field(..., description="Cantidad total de eventos")
+

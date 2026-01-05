@@ -126,3 +126,37 @@ class EconomicCalendarService:
             f"Hoy hay {len(events)} noticias de alto impacto para XAUUSD: "
             f"{descriptions_text} y {last_description}."
         )
+    
+    async def get_event_schedule_today(
+        self,
+        currency: Optional[str] = None
+    ) -> list[EconomicEvent]:
+        """
+        Obtiene todos los eventos del día actual (no solo de alto impacto)
+        @param currency - Moneda para filtrar (opcional, por defecto USD)
+        @returns Lista de eventos del día
+        """
+        today = date.today()
+        target_currency = currency or "USD"
+        
+        logger.info(
+            f"Fetching event schedule for {today} with currency {target_currency}"
+        )
+        
+        events = await self.provider.fetch_events(today, target_currency)
+        
+        if not events:
+            logger.warning(f"No events found for {today}")
+        
+        # Filtrar eventos relevantes para XAUUSD
+        xauusd_events = XAUUSDFilter.filter_xauusd_events(events)
+        
+        # Ordenar por hora
+        xauusd_events.sort(key=lambda e: e.date)
+        
+        logger.info(
+            f"Found {len(xauusd_events)} events for schedule out of "
+            f"{len(events)} total events"
+        )
+        
+        return xauusd_events

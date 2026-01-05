@@ -7,8 +7,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config.settings import Settings, get_settings
-from app.models.economic_calendar import HighImpactNewsResponse
+from app.models.economic_calendar import EventScheduleResponse, HighImpactNewsResponse
 from app.services.economic_calendar_service import EconomicCalendarService
+from app.utils.schedule_formatter import ScheduleFormatter
 from app.utils.validators import CurrencyValidator
 
 logger = logging.getLogger(__name__)
@@ -72,5 +73,65 @@ async def get_high_impact_news_today(
         raise HTTPException(
             status_code=500,
             detail="Error interno al obtener noticias de alto impacto para XAUUSD"
+        )
+
+
+@router.get(
+    "/event-schedule",
+    response_model=EventScheduleResponse,
+    summary="Obtiene el calendario de eventos del día con horarios",
+    description="Devuelve una lista de eventos económicos del día con sus horarios, indicando cuáles afectan al USD"
+)
+async def get_event_schedule_today(
+    currency: Optional[str] = Query(
+        None,
+        description="Código de moneda ISO 4217 (ej: USD, EUR). Por defecto USD.",
+        min_length=3,
+        max_length=3,
+        pattern="^[A-Z]{3}$"
+    ),
+    service: EconomicCalendarService = Depends(get_economic_calendar_service)
+) -> EventScheduleResponse:
+    """
+    Endpoint para obtener el calendario de eventos del día con horarios
+    @param currency - Moneda para filtrar (opcional, por defecto USD). Debe ser código ISO 4217 de 3 letras.
+    @param service - Servicio de calendario económico
+    @returns Respuesta con calendario de eventos formateado
+    """
+    try:
+        from datetime import date
+        
+        validated_currency = None
+        if currency:
+            try:
+                validated_currency = CurrencyValidator.validate_currency(currency)
+            except ValueError as e:
+                logger.warning(f"Invalid currency parameter: {currency} - {str(e)}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=str(e)
+                )
+        
+        logger.info(f"Fetching event schedule with currency: {validated_currency or 'USD'}")
+        events = await service.get_event_schedule_today(currency=validated_currency)
+        
+        formatted_events = ScheduleFormatter.format_events(events)
+        usd_events_count = sum(1 for event in formatted_events if event.affects_usd)
+        
+        logger.info(f"Successfully retrieved {len(formatted_events)} events, {usd_events_count} affecting USD")
+        
+        return EventScheduleResponse(
+            date=date.today().isoformat(),
+            events=formatted_events,
+            usd_events_count=usd_events_count,
+            total_events=len(formatted_events)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error fetching event schedule: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno al obtener el calendario de eventos"
         )
 
