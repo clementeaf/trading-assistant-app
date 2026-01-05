@@ -6,7 +6,7 @@ Globals:
   Function:
     Timeout: 30
     MemorySize: 512
-    Runtime: python3.11
+    Runtime: python3.12
     Environment:
       Variables:
         STAGE: !Ref Stage
@@ -38,7 +38,7 @@ Resources:
       FunctionName: !Sub 'trading-assistant-${Stage}'
       CodeUri: .
       Handler: main.handler
-      Runtime: python3.11
+      Runtime: python3.12
       Timeout: 30
       MemorySize: 512
       Environment:
