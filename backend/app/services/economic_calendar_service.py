@@ -21,6 +21,7 @@ from app.providers.tradingeconomics_provider import TradingEconomicsProvider
 from app.repositories.economic_events_repository import EconomicEventsRepository
 from app.utils.schedule_formatter import ScheduleFormatter
 from app.utils.xauusd_filter import XAUUSDFilter
+from app.utils.business_days import BusinessDays
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +50,24 @@ class EconomicCalendarService:
 
         if provider_name == "tradingeconomics":
             if not settings.economic_calendar_api_key:
-                logger.warning(
+                raise ValueError(
                     "TradingEconomics provider selected but no API key configured. "
-                    "Falling back to mock provider."
+                    "Please set ECONOMIC_CALENDAR_API_KEY environment variable. "
+                    "Get your free API key at: https://tradingeconomics.com/api"
                 )
-                return MockProvider()
+            
+            # Verificar que la API key no sea un placeholder
+            invalid_keys = [
+                "your_api_key_here", "your_key_here", "placeholder", ""
+            ]
+            if settings.economic_calendar_api_key.lower() in invalid_keys:
+                raise ValueError(
+                    "TradingEconomics API key appears to be a placeholder. "
+                    "Please set a valid ECONOMIC_CALENDAR_API_KEY. "
+                    "Get your free API key at: https://tradingeconomics.com/api"
+                )
 
+            logger.info("Using TradingEconomics provider for economic calendar (real data)")
             return TradingEconomicsProvider(
                 api_key=settings.economic_calendar_api_key,
                 api_url=settings.economic_calendar_api_url
@@ -77,11 +90,18 @@ class EconomicCalendarService:
         @param currency - Moneda para filtrar (opcional, por defecto USD)
         @returns Respuesta con noticias de alto impacto relevantes para XAUUSD
         """
+        # Usar día hábil actual (la Fed solo opera en días hábiles)
         today = date.today()
+        if not BusinessDays.is_business_day(today):
+            # Si hoy es fin de semana, usar el último día hábil
+            today = BusinessDays.get_last_business_day(today)
+            logger.info(f"Today is weekend/holiday, using last business day: {today}")
+        
         target_currency = currency or "USD"
 
         logger.info(
-            f"Fetching high impact news for XAUUSD on {today} with currency {target_currency}"
+            f"Fetching high impact news for XAUUSD on {today} (business day) "
+            f"with currency {target_currency}"
         )
 
         # Intentar obtener de base de datos primero
@@ -156,11 +176,18 @@ class EconomicCalendarService:
         @param currency - Moneda para filtrar (opcional, por defecto USD)
         @returns Respuesta con el calendario de eventos
         """
+        # Usar día hábil actual (la Fed solo opera en días hábiles)
         today = date.today()
+        if not BusinessDays.is_business_day(today):
+            # Si hoy es fin de semana, usar el último día hábil
+            today = BusinessDays.get_last_business_day(today)
+            logger.info(f"Today is weekend/holiday, using last business day: {today}")
+        
         target_currency = currency or "USD"
 
         logger.info(
-            f"Fetching event schedule for {today} with currency {target_currency}"
+            f"Fetching event schedule for {today} (business day) "
+            f"with currency {target_currency}"
         )
 
         # Intentar obtener de base de datos primero

@@ -14,6 +14,7 @@ from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvide
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
 from app.providers.market_data.fred_provider import FredProvider
 from app.utils.alignment_analyzer import AlignmentAnalyzer
+from app.utils.business_days import BusinessDays
 
 logger = logging.getLogger(__name__)
 
@@ -72,12 +73,15 @@ class MarketAlignmentService:
         @param bond_symbol - Símbolo del bono (US10Y, US02Y, etc.)
         @returns Análisis de alineación
         """
+        # Usar días hábiles (la Fed solo opera en días hábiles)
         today = datetime.now().date()
-        # FRED puede tener delay en datos, intentar con fechas más antiguas si no hay datos
-        yesterday = today - timedelta(days=1)
-        day_before = yesterday - timedelta(days=1)
+        yesterday = BusinessDays.get_last_business_day(today)
+        day_before = BusinessDays.get_previous_business_day(yesterday)
         
-        logger.info(f"Analyzing alignment between DXY and {bond_symbol}")
+        logger.info(
+            f"Analyzing alignment between DXY and {bond_symbol} "
+            f"(last business day: {yesterday}, previous: {day_before})"
+        )
         
         # Obtener datos de DXY
         # Intentar con fechas más antiguas si no hay datos disponibles

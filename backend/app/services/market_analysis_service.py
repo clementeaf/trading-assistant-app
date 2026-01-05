@@ -14,6 +14,7 @@ from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvide
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
 from app.utils.market_analyzer import MarketAnalyzer
 from app.utils.trading_sessions import TradingSessions
+from app.utils.business_days import BusinessDays
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +73,15 @@ class MarketAnalysisService:
         @param instrument - Instrumento a analizar (por defecto XAUUSD)
         @returns Análisis completo del día
         """
-        yesterday = datetime.now().date() - timedelta(days=1)
-        day_before = yesterday - timedelta(days=1)
+        # Usar días hábiles (la Fed y mercados solo operan en días hábiles)
+        today = datetime.now().date()
+        yesterday = BusinessDays.get_last_business_day(today)
+        day_before = BusinessDays.get_previous_business_day(yesterday)
         
-        logger.info(f"Analyzing {instrument} for {yesterday}")
+        logger.info(
+            f"Analyzing {instrument} for {yesterday} "
+            f"(last business day, day before: {day_before})"
+        )
         
         # Obtener datos del día anterior (para calcular cierre)
         day_before_start = datetime.combine(day_before, datetime.min.time())
