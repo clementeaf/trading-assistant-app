@@ -7,11 +7,11 @@ import type {
   TradingModeRecommendation,
 } from "../types/api";
 
+// Usar endpoint de producción (AWS Lambda) por defecto
+// Para desarrollo local, configurar VITE_API_URL=http://localhost:8000
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV
-    ? "http://localhost:8000"
-    : "https://yx1x1mom8i.execute-api.us-east-1.amazonaws.com");
+  "https://yx1x1mom8i.execute-api.us-east-1.amazonaws.com";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
