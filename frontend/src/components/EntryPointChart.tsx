@@ -86,6 +86,9 @@ export function EntryPointChart({
     const height = canvas.height;
     const padding = 40;
 
+    // Debug: verificar si hay velas
+    console.log("EntryPointChart - candles recibidas:", candles?.length || 0, candles);
+
     // Limpiar canvas
     ctx.clearRect(0, 0, width, height);
 
@@ -123,15 +126,17 @@ export function EntryPointChart({
       ctx.fillText(`${label}: ${price.toFixed(2)}`, width - padding - 100, y - 5);
     };
 
-    // Dibujar velas japonesas si hay datos
-    if (candles.length > 0) {
+    // Dibujar velas japonesas si hay datos (ANTES de las líneas para que queden debajo)
+    if (candles && candles.length > 0) {
       const sortedCandles = [...candles].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
       
+      console.log(`Dibujando ${sortedCandles.length} velas japonesas`);
+      
       const candleWidth = (width - 2 * padding) / sortedCandles.length;
-      const candleSpacing = candleWidth * 0.1;
-      const actualCandleWidth = candleWidth - candleSpacing;
+      const candleSpacing = Math.max(1, candleWidth * 0.1);
+      const actualCandleWidth = Math.max(2, candleWidth - candleSpacing);
       
       sortedCandles.forEach((candle, index) => {
         const x = padding + index * candleWidth + candleSpacing / 2;
@@ -143,7 +148,7 @@ export function EntryPointChart({
         const isBullish = candle.close >= candle.open;
         const color = isBullish ? "#10b981" : "#ef4444";
         
-        // Sombra (wick)
+        // Sombra (wick) - línea vertical completa
         ctx.strokeStyle = color;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -153,7 +158,7 @@ export function EntryPointChart({
         
         // Cuerpo de la vela
         const bodyTop = Math.min(openY, closeY);
-        const bodyHeight = Math.abs(closeY - openY) || 1;
+        const bodyHeight = Math.max(1, Math.abs(closeY - openY));
         ctx.fillStyle = color;
         ctx.fillRect(x, bodyTop, actualCandleWidth, bodyHeight);
         
@@ -163,28 +168,7 @@ export function EntryPointChart({
         ctx.strokeRect(x, bodyTop, actualCandleWidth, bodyHeight);
       });
     } else {
-      // Si no hay velas, dibujar línea de precio
-      const sortedCandles = candles.length > 0 
-        ? [...candles].sort((a, b) => 
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          )
-        : [];
-      
-      if (sortedCandles.length > 0) {
-        ctx.strokeStyle = "#3b82f6";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        sortedCandles.forEach((candle, index) => {
-          const x = padding + (index / sortedCandles.length) * (width - 2 * padding);
-          const y = priceToY(candle.close);
-          if (index === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-        });
-        ctx.stroke();
-      }
+      console.log("No hay velas para dibujar, candles:", candles);
     }
 
     // Dibujar niveles

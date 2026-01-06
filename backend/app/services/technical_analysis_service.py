@@ -140,11 +140,36 @@ class TechnicalAnalysisService:
             logger.error(f"Error generating summary: {str(e)}")
             summary = "Error generating summary"
         
-        # Obtener últimas velas H4 para el chart (últimas 50 velas)
-        h4_chart_candles = []
-        if h4_candles:
+        # Obtener últimas velas para el chart (priorizar H4, luego H1, luego Daily)
+        chart_candles_source = []
+        if h4_candles and len(h4_candles) > 0:
             sorted_h4 = sorted(h4_candles, key=lambda c: c.timestamp)
-            h4_chart_candles = sorted_h4[-50:]  # Últimas 50 velas H4
+            chart_candles_source = sorted_h4[-50:]  # Últimas 50 velas H4
+            logger.info(f"Using {len(chart_candles_source)} H4 candles for chart")
+        elif h1_candles and len(h1_candles) > 0:
+            sorted_h1 = sorted(h1_candles, key=lambda c: c.timestamp)
+            chart_candles_source = sorted_h1[-100:]  # Últimas 100 velas H1 (más velas porque son más pequeñas)
+            logger.info(f"Using {len(chart_candles_source)} H1 candles for chart (H4 not available)")
+        elif daily_candles and len(daily_candles) > 0:
+            sorted_daily = sorted(daily_candles, key=lambda c: c.timestamp)
+            chart_candles_source = sorted_daily[-50:]  # Últimas 50 velas Daily
+            logger.info(f"Using {len(chart_candles_source)} Daily candles for chart (H4 and H1 not available)")
+        else:
+            logger.warning(f"No candles available for chart. H4={len(h4_candles)}, H1={len(h1_candles)}, Daily={len(daily_candles)}")
+        
+        chart_candles_data = [
+            {
+                "timestamp": c.timestamp.isoformat(),
+                "open": c.open,
+                "high": c.high,
+                "low": c.low,
+                "close": c.close,
+                "volume": c.volume
+            }
+            for c in chart_candles_source
+        ]
+        
+        logger.info(f"Returning {len(chart_candles_data)} chart candles")
         
         return {
             "instrument": instrument,
@@ -153,17 +178,7 @@ class TechnicalAnalysisService:
             "h4": h4_analysis,
             "h1": h1_analysis,
             "summary": summary,
-            "chart_candles": [
-                {
-                    "timestamp": c.timestamp.isoformat(),
-                    "open": c.open,
-                    "high": c.high,
-                    "low": c.low,
-                    "close": c.close,
-                    "volume": c.volume
-                }
-                for c in h4_chart_candles
-            ]
+            "chart_candles": chart_candles_data
         }
     
     async def _get_candles_with_cache(
@@ -190,6 +205,7 @@ class TechnicalAnalysisService:
             "1h": "1h"
         }
         db_interval = interval_mapping.get(interval, interval)
+        logger.info(f"Fetching {timeframe_name} candles: interval={interval}, db_interval={db_interval}, start={start_date}, end={end_date}")
         
         # Intentar obtener de BD primero
         db_candles = []

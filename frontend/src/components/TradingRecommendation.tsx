@@ -20,6 +20,14 @@ export function TradingRecommendation(): React.JSX.Element | null {
     enabled: !!data, // Solo cargar si hay recomendación
   });
 
+  // Debug
+  React.useEffect(() => {
+    if (technicalData) {
+      console.log("Technical data recibida:", technicalData);
+      console.log("Chart candles:", technicalData.chart_candles?.length || 0);
+    }
+  }, [technicalData]);
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -340,22 +348,36 @@ export function TradingRecommendation(): React.JSX.Element | null {
       </div>
 
       {/* Chart de Niveles con Velas */}
-      <EntryPointChart
-        currentPrice={data.current_price}
-        supportLevel={data.support_level}
-        resistanceLevel={data.resistance_level}
-        entryPrice={data.entry_price}
-        stopLoss={data.stop_loss}
-        takeProfit1={data.take_profit_1}
-        takeProfit2={data.take_profit_2}
-        ema50={data.h4_ema_50}
-        ema100={data.h4_ema_100}
-        ema200={data.h4_ema_200}
-        candles={technicalData?.chart_candles || []}
-        onPointAdded={(price, type) => {
-          console.log(`Punto agregado: ${type} a ${price.toFixed(2)}`);
-        }}
-      />
+      {(() => {
+        const chartCandles = technicalData?.chart_candles || [];
+        console.log("TradingRecommendation - technicalData:", technicalData);
+        console.log("TradingRecommendation - chart_candles:", chartCandles?.length || 0, chartCandles);
+        return (
+          <>
+            <EntryPointChart
+              currentPrice={data.current_price}
+              supportLevel={data.support_level}
+              resistanceLevel={data.resistance_level}
+              entryPrice={data.entry_price}
+              stopLoss={data.stop_loss}
+              takeProfit1={data.take_profit_1}
+              takeProfit2={data.take_profit_2}
+              ema50={data.h4_ema_50}
+              ema100={data.h4_ema_100}
+              ema200={data.h4_ema_200}
+              candles={chartCandles}
+              onPointAdded={(price, type) => {
+                console.log(`Punto agregado: ${type} a ${price.toFixed(2)}`);
+              }}
+            />
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mt-2 mb-4 text-center">
+              Velas recibidas para chart: {chartCandles.length} | 
+              Technical data cargada: {technicalData ? "Sí" : "No"}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Contexto del mercado */}
       <div className="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">
