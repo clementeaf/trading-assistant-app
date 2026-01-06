@@ -9,11 +9,9 @@ import type {
   TechnicalAnalysisResponse,
 } from "../types/api";
 
-// Usar endpoint de producción (AWS Lambda) por defecto
-// Para desarrollo local, configurar VITE_API_URL=http://localhost:8000
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://yx1x1mom8i.execute-api.us-east-1.amazonaws.com";
+// SIEMPRE usar endpoint de producción (AWS Lambda)
+// NO usar localhost - el frontend siempre debe consumir el backend desplegado en AWS
+const API_BASE_URL = "https://yx1x1mom8i.execute-api.us-east-1.amazonaws.com";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
