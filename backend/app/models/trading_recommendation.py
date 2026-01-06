@@ -54,6 +54,11 @@ class TradeRecommendation(BaseModel):
     price_near_support: Optional[bool] = Field(None, description="Si el precio está cerca del soporte")
     price_near_resistance: Optional[bool] = Field(None, description="Si el precio está cerca de la resistencia")
     
+    # EMAs por timeframe (solo H4 según requerimientos)
+    h4_ema_50: Optional[float] = Field(None, description="EMA 50 en H4")
+    h4_ema_100: Optional[float] = Field(None, description="EMA 100 en H4")
+    h4_ema_200: Optional[float] = Field(None, description="EMA 200 en H4")
+    
     # Contexto del mercado
     market_context: str = Field(..., description="Contexto del mercado (risk-on/risk-off/neutral)")
     trading_mode: str = Field(..., description="Modo de trading recomendado (calma/agresivo/etc)")

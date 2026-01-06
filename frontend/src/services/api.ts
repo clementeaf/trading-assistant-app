@@ -6,6 +6,7 @@ import type {
   MarketAlignmentAnalysis,
   TradingModeRecommendation,
   TradeRecommendation,
+  TechnicalAnalysisResponse,
 } from "../types/api";
 
 // Usar endpoint de producción (AWS Lambda) por defecto
@@ -134,6 +135,23 @@ export async function getTradingRecommendation(
         bond,
         time_window_minutes: timeWindowMinutes,
       },
+    }
+  );
+  return response.data;
+}
+
+/**
+ * Obtiene análisis técnico avanzado multi-temporalidad (Daily, H4, H1)
+ * @param instrument - Instrumento a analizar (ej: XAUUSD)
+ * @returns Análisis técnico con RSI, EMAs, soporte/resistencia
+ */
+export async function getTechnicalAnalysis(
+  instrument: string = "XAUUSD"
+): Promise<TechnicalAnalysisResponse> {
+  const response = await apiClient.get<TechnicalAnalysisResponse>(
+    "/api/market-briefing/technical-analysis",
+    {
+      params: { instrument },
     }
   );
   return response.data;

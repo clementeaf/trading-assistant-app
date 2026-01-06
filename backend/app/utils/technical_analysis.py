@@ -238,4 +238,46 @@ class TechnicalAnalysis:
             return closest_zone
         
         return None
+    
+    @staticmethod
+    def calculate_ema(candles: list[PriceCandle], period: int) -> Optional[float]:
+        """
+        Calcula la Media Móvil Exponencial (EMA) para un período dado
+        @param candles - Lista de velas ordenadas por timestamp
+        @param period - Período de la EMA (ej: 50, 100, 200)
+        @returns Valor de la EMA o None si no hay suficientes datos
+        """
+        if len(candles) < period:
+            return None
+        
+        sorted_candles = sorted(candles, key=lambda c: c.timestamp)
+        closes = [c.close for c in sorted_candles]
+        
+        # Calcular multiplicador
+        multiplier = 2.0 / (period + 1)
+        
+        # EMA inicial: usar SMA de los primeros 'period' valores
+        ema = sum(closes[:period]) / period
+        
+        # Calcular EMA para el resto de los valores
+        for i in range(period, len(closes)):
+            ema = (closes[i] * multiplier) + (ema * (1 - multiplier))
+        
+        return round(ema, 2)
+    
+    @staticmethod
+    def calculate_emas(
+        candles: list[PriceCandle],
+        periods: list[int] = [50, 100, 200]
+    ) -> dict[int, Optional[float]]:
+        """
+        Calcula múltiples EMAs para diferentes períodos
+        @param candles - Lista de velas ordenadas por timestamp
+        @param periods - Lista de períodos a calcular (default: [50, 100, 200])
+        @returns Diccionario con {period: ema_value}
+        """
+        result = {}
+        for period in periods:
+            result[period] = TechnicalAnalysis.calculate_ema(candles, period)
+        return result
 

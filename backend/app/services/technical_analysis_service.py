@@ -140,13 +140,30 @@ class TechnicalAnalysisService:
             logger.error(f"Error generating summary: {str(e)}")
             summary = "Error generating summary"
         
+        # Obtener últimas velas H4 para el chart (últimas 50 velas)
+        h4_chart_candles = []
+        if h4_candles:
+            sorted_h4 = sorted(h4_candles, key=lambda c: c.timestamp)
+            h4_chart_candles = sorted_h4[-50:]  # Últimas 50 velas H4
+        
         return {
             "instrument": instrument,
             "analysis_date": last_business_day.isoformat(),
             "daily": daily_analysis,
             "h4": h4_analysis,
             "h1": h1_analysis,
-            "summary": summary
+            "summary": summary,
+            "chart_candles": [
+                {
+                    "timestamp": c.timestamp.isoformat(),
+                    "open": c.open,
+                    "high": c.high,
+                    "low": c.low,
+                    "close": c.close,
+                    "volume": c.volume
+                }
+                for c in h4_chart_candles
+            ]
         }
     
     async def _get_candles_with_cache(
@@ -278,6 +295,9 @@ class TechnicalAnalysisService:
             if rsi is not None:
                 rsi_zone = TechnicalAnalysis.check_rsi_zone(rsi, rsi_zones)
         
+        # Calcular EMAs (50, 100, 200) para todos los timeframes
+        emas = TechnicalAnalysis.calculate_emas(sorted_candles, periods=[50, 100, 200])
+        
         # Análisis de impulso (solo para H4)
         impulse_direction = None
         impulse_distance = 0.0
@@ -311,6 +331,9 @@ class TechnicalAnalysisService:
             "resistance": resistance,
             "near_support": near_support,
             "near_resistance": near_resistance,
+            "ema_50": emas.get(50),
+            "ema_100": emas.get(100),
+            "ema_200": emas.get(200),
             "candles_count": len(sorted_candles),
             "last_candle_time": sorted_candles[-1].timestamp.isoformat() if sorted_candles else None
         }

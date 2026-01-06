@@ -125,5 +125,66 @@ export interface TradeRecommendation {
   summary: string;
   detailed_explanation: string;
   warnings: string[];
+  // Análisis técnico avanzado
+  daily_trend?: string | null;
+  h4_trend?: string | null;
+  h4_rsi?: number | null;
+  h4_rsi_zone?: number | null;
+  h4_impulse_direction?: string | null;
+  h4_impulse_strong?: boolean | null;
+  h4_impulse_distance_percent?: number | null;
+  h1_trend?: string | null;
+  price_near_support?: boolean | null;
+  price_near_resistance?: boolean | null;
+  h4_ema_50?: number | null;
+  h4_ema_100?: number | null;
+  h4_ema_200?: number | null;
+}
+
+export interface TechnicalAnalysisResponse {
+  instrument: string;
+  analysis_date: string;
+  daily: {
+    timeframe: string;
+    current_price: number;
+    trend: string;
+    support?: number | null;
+    resistance?: number | null;
+    ema_50?: number | null;
+    ema_100?: number | null;
+    ema_200?: number | null;
+    candles_count: number;
+  };
+  h4: {
+    timeframe: string;
+    current_price: number;
+    trend: string;
+    rsi?: number | null;
+    rsi_zone?: number | null;
+    impulse_direction?: string | null;
+    impulse_distance_percent?: number | null;
+    impulse_strong?: boolean | null;
+    support?: number | null;
+    resistance?: number | null;
+    near_support?: boolean | null;
+    near_resistance?: boolean | null;
+    ema_50?: number | null;
+    ema_100?: number | null;
+    ema_200?: number | null;
+    candles_count: number;
+  };
+  h1: {
+    timeframe: string;
+    current_price: number;
+    trend: string;
+    support?: number | null;
+    resistance?: number | null;
+    ema_50?: number | null;
+    ema_100?: number | null;
+    ema_200?: number | null;
+    candles_count: number;
+  };
+  summary: string;
+  chart_candles?: PriceCandle[];
 }
 

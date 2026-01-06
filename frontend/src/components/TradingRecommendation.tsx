@@ -1,7 +1,8 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { TradeRecommendation } from "../types/api";
-import { getTradingRecommendation } from "../services/api";
+import type { TradeRecommendation, TechnicalAnalysisResponse } from "../types/api";
+import { getTradingRecommendation, getTechnicalAnalysis } from "../services/api";
+import { EntryPointChart } from "./EntryPointChart";
 
 /**
  * Componente que muestra la recomendación completa de trading con niveles de precio
@@ -10,6 +11,13 @@ export function TradingRecommendation(): React.JSX.Element | null {
   const { data, isLoading, error } = useQuery<TradeRecommendation>({
     queryKey: ["tradingRecommendation", "XAUUSD", "US10Y"],
     queryFn: () => getTradingRecommendation("XAUUSD", "US10Y"),
+  });
+
+  // Obtener datos técnicos para el chart
+  const { data: technicalData } = useQuery<TechnicalAnalysisResponse>({
+    queryKey: ["technicalAnalysis", "XAUUSD"],
+    queryFn: () => getTechnicalAnalysis("XAUUSD"),
+    enabled: !!data, // Solo cargar si hay recomendación
   });
 
   if (isLoading) {
@@ -198,23 +206,156 @@ export function TradingRecommendation(): React.JSX.Element | null {
         </div>
       )}
 
-      {/* Niveles de soporte y resistencia */}
-      {(data.support_level || data.resistance_level) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {data.support_level && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-purple-900 mb-2">Soporte</h4>
-              <p className="text-xl font-bold text-purple-700">{data.support_level.toFixed(2)}</p>
+      {/* Análisis Técnico - RSI, EMAs, S/R */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Análisis Técnico (H4)</h3>
+        
+        {/* RSI */}
+        {data.h4_rsi !== null && data.h4_rsi !== undefined && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">RSI</span>
+              <span className={`text-lg font-bold ${
+                data.h4_rsi > 70 ? 'text-red-600' : 
+                data.h4_rsi < 30 ? 'text-green-600' : 
+                'text-gray-700'
+              }`}>
+                {data.h4_rsi.toFixed(2)}
+              </span>
             </div>
-          )}
-          {data.resistance_level && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-orange-900 mb-2">Resistencia</h4>
-              <p className="text-xl font-bold text-orange-700">{data.resistance_level.toFixed(2)}</p>
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                className={`h-2.5 rounded-full ${
+                  data.h4_rsi > 70 ? 'bg-red-500' : 
+                  data.h4_rsi < 30 ? 'bg-green-500' : 
+                  'bg-blue-500'
+                }`}
+                style={{ width: `${data.h4_rsi}%` }}
+              ></div>
             </div>
-          )}
-        </div>
-      )}
+            {data.h4_rsi_zone && (
+              <p className="text-xs text-blue-600 mt-1">
+                En zona objetivo: {data.h4_rsi_zone}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* EMAs */}
+        {(data.h4_ema_50 || data.h4_ema_100 || data.h4_ema_200) && (
+          <div className="mb-4">
+            <p className="text-sm font-medium text-gray-700 mb-2">EMAs</p>
+            <div className="grid grid-cols-3 gap-2">
+              {data.h4_ema_50 && (
+                <div className="bg-white rounded p-2 border border-gray-200">
+                  <p className="text-xs text-gray-500">EMA 50</p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {data.h4_ema_50.toFixed(2)}
+                  </p>
+                </div>
+              )}
+              {data.h4_ema_100 && (
+                <div className="bg-white rounded p-2 border border-gray-200">
+                  <p className="text-xs text-gray-500">EMA 100</p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {data.h4_ema_100.toFixed(2)}
+                  </p>
+                </div>
+              )}
+              {data.h4_ema_200 && (
+                <div className="bg-white rounded p-2 border border-gray-200">
+                  <p className="text-xs text-gray-500">EMA 200</p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {data.h4_ema_200.toFixed(2)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Soporte y Resistencia */}
+        {(data.support_level || data.resistance_level) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {data.support_level && (
+              <div className={`bg-white rounded-lg p-4 border-2 ${
+                data.price_near_support ? 'border-green-400 bg-green-50' : 'border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">Soporte</p>
+                  {data.price_near_support && (
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                      Cerca
+                    </span>
+                  )}
+                </div>
+                <p className="text-lg font-semibold text-gray-800">
+                  {data.support_level.toFixed(2)}
+                </p>
+              </div>
+            )}
+            {data.resistance_level && (
+              <div className={`bg-white rounded-lg p-4 border-2 ${
+                data.price_near_resistance ? 'border-red-400 bg-red-50' : 'border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">Resistencia</p>
+                  {data.price_near_resistance && (
+                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                      Cerca
+                    </span>
+                  )}
+                </div>
+                <p className="text-lg font-semibold text-gray-800">
+                  {data.resistance_level.toFixed(2)}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tendencias por timeframe */}
+        {(data.daily_trend || data.h4_trend || data.h1_trend) && (
+          <div className="mt-4 pt-4 border-t border-blue-200">
+            <p className="text-sm font-medium text-gray-700 mb-2">Tendencias</p>
+            <div className="flex flex-wrap gap-2">
+              {data.daily_trend && (
+                <span className="text-xs bg-white px-3 py-1 rounded-full border border-gray-200">
+                  Daily: <span className="font-semibold capitalize">{data.daily_trend}</span>
+                </span>
+              )}
+              {data.h4_trend && (
+                <span className="text-xs bg-white px-3 py-1 rounded-full border border-gray-200">
+                  H4: <span className="font-semibold capitalize">{data.h4_trend}</span>
+                </span>
+              )}
+              {data.h1_trend && (
+                <span className="text-xs bg-white px-3 py-1 rounded-full border border-gray-200">
+                  H1: <span className="font-semibold capitalize">{data.h1_trend}</span>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Chart de Niveles con Velas */}
+      <EntryPointChart
+        currentPrice={data.current_price}
+        supportLevel={data.support_level}
+        resistanceLevel={data.resistance_level}
+        entryPrice={data.entry_price}
+        stopLoss={data.stop_loss}
+        takeProfit1={data.take_profit_1}
+        takeProfit2={data.take_profit_2}
+        ema50={data.h4_ema_50}
+        ema100={data.h4_ema_100}
+        ema200={data.h4_ema_200}
+        candles={technicalData?.chart_candles || []}
+        onPointAdded={(price, type) => {
+          console.log(`Punto agregado: ${type} a ${price.toFixed(2)}`);
+        }}
+      />
 
       {/* Contexto del mercado */}
       <div className="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">

@@ -174,6 +174,11 @@ class TradingAdvisorService:
             price_near_support = h4_data.get("near_support")
             price_near_resistance = h4_data.get("near_resistance")
             
+            # EMAs de H4
+            h4_ema_50 = h4_data.get("ema_50")
+            h4_ema_100 = h4_data.get("ema_100")
+            h4_ema_200 = h4_data.get("ema_200")
+            
             # Usar soporte/resistencia del análisis técnico si está disponible
             h4_support = h4_data.get("support")
             h4_resistance = h4_data.get("resistance")
@@ -208,6 +213,9 @@ class TradingAdvisorService:
             h1_trend=h1_trend,
             price_near_support=price_near_support,
             price_near_resistance=price_near_resistance,
+            h4_ema_50=h4_ema_50,
+            h4_ema_100=h4_ema_100,
+            h4_ema_200=h4_ema_200,
             reasons=reasons,
             summary=summary,
             detailed_explanation=detailed_explanation,
