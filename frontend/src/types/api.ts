@@ -102,3 +102,28 @@ export interface TradingModeRecommendation {
   detailed_explanation: string;
 }
 
+export interface TradeRecommendation {
+  analysis_date: string;
+  analysis_datetime: string;
+  current_datetime: string;
+  direction: "compra" | "venta" | "esperar";
+  confidence: number;
+  current_price: number;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit_1: number | null;
+  take_profit_2: number | null;
+  optimal_entry_range: {
+    min: number;
+    max: number;
+  } | null;
+  support_level: number | null;
+  resistance_level: number | null;
+  market_context: "risk-on" | "risk-off" | "mixto";
+  trading_mode: "calma" | "agresivo" | "muy_calma" | "observar";
+  reasons: string[];
+  summary: string;
+  detailed_explanation: string;
+  warnings: string[];
+}
+

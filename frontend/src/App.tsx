@@ -4,6 +4,7 @@ import { EventSchedule } from "./components/EventSchedule";
 import { YesterdayAnalysis } from "./components/YesterdayAnalysis";
 import { DxyBondAlignment } from "./components/DxyBondAlignment";
 import { TradingMode } from "./components/TradingMode";
+import { TradingRecommendation } from "./components/TradingRecommendation";
 
 /**
  * Componente principal de la aplicación
@@ -20,7 +21,10 @@ function App(): React.JSX.Element {
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          {/* Sección principal: Modo de Trading */}
+          {/* Sección principal: Recomendación de Trading con niveles */}
+          <TradingRecommendation />
+          
+          {/* Modo de Trading */}
           <TradingMode />
           
           {/* Grid de 2 columnas para información complementaria */}

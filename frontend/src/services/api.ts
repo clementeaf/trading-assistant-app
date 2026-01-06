@@ -5,6 +5,7 @@ import type {
   HighImpactNewsResponse,
   MarketAlignmentAnalysis,
   TradingModeRecommendation,
+  TradeRecommendation,
 } from "../types/api";
 
 // Usar endpoint de producción (AWS Lambda) por defecto
@@ -102,6 +103,31 @@ export async function getTradingModeRecommendation(
 ): Promise<TradingModeRecommendation> {
   const response = await apiClient.get<TradingModeRecommendation>(
     "/api/market-briefing/trading-mode",
+    {
+      params: {
+        instrument,
+        bond,
+        time_window_minutes: timeWindowMinutes,
+      },
+    }
+  );
+  return response.data;
+}
+
+/**
+ * Obtiene recomendación completa de trading con niveles de precio
+ * @param instrument - Instrumento principal a analizar (ej: XAUUSD)
+ * @param bond - Símbolo del bono (ej: US10Y)
+ * @param timeWindowMinutes - Ventana de tiempo en minutos para noticias próximas
+ * @returns Recomendación de trading con niveles de precio
+ */
+export async function getTradingRecommendation(
+  instrument: string = "XAUUSD",
+  bond: string = "US10Y",
+  timeWindowMinutes: number = 120
+): Promise<TradeRecommendation> {
+  const response = await apiClient.get<TradeRecommendation>(
+    "/api/market-briefing/trading-recommendation",
     {
       params: {
         instrument,
