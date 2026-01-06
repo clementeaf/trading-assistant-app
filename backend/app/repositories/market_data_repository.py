@@ -121,4 +121,46 @@ class MarketDataRepository:
         return self.db.query(MarketDataModel).filter(
             MarketDataModel.instrument == instrument.upper()
         ).order_by(desc(MarketDataModel.timestamp)).first()
+    
+    def get_latest_candle_by_interval(
+        self,
+        instrument: str,
+        interval: str
+    ) -> Optional[MarketDataModel]:
+        """
+        Obtiene la vela más reciente de un instrumento para un intervalo específico
+        @param instrument - Símbolo del instrumento
+        @param interval - Intervalo de las velas (ej: "1h", "4h", "1day")
+        @returns Última vela o None
+        """
+        if not self.db:
+            return None
+        
+        return self.db.query(MarketDataModel).filter(
+            and_(
+                MarketDataModel.instrument == instrument.upper(),
+                MarketDataModel.interval == interval
+            )
+        ).order_by(desc(MarketDataModel.timestamp)).first()
+    
+    def convert_to_price_candles(
+        self,
+        models: List[MarketDataModel]
+    ) -> List[PriceCandle]:
+        """
+        Convierte modelos de BD a PriceCandle
+        @param models - Lista de modelos de BD
+        @returns Lista de PriceCandle
+        """
+        return [
+            PriceCandle(
+                timestamp=model.timestamp,
+                open=model.open_price,
+                high=model.high_price,
+                low=model.low_price,
+                close=model.close_price,
+                volume=model.volume
+            )
+            for model in models
+        ]
 

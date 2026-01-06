@@ -19,6 +19,7 @@ from app.services.market_analysis_service import MarketAnalysisService
 from app.services.market_alignment_service import MarketAlignmentService
 from app.services.trading_mode_service import TradingModeService
 from app.services.trading_advisor_service import TradingAdvisorService
+from app.services.technical_analysis_service import TechnicalAnalysisService
 from app.utils.validators import CurrencyValidator, InstrumentValidator
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,19 @@ def get_market_alignment_service(
     return MarketAlignmentService(settings, db)
 
 
+def get_technical_analysis_service(
+    settings: Settings = Depends(get_settings),
+    db: Optional[Session] = Depends(get_db)
+) -> TechnicalAnalysisService:
+    """
+    Dependency para obtener el servicio de análisis técnico avanzado
+    @param settings - Configuración de la aplicación
+    @param db - Sesión de base de datos
+    @returns Instancia del servicio de análisis técnico
+    """
+    return TechnicalAnalysisService(settings, db)
+
+
 def get_trading_mode_service(
     settings: Settings = Depends(get_settings),
     economic_calendar_service: EconomicCalendarService = Depends(get_economic_calendar_service),
@@ -96,6 +110,7 @@ def get_trading_advisor_service(
     market_alignment_service: MarketAlignmentService = Depends(get_market_alignment_service),
     trading_mode_service: TradingModeService = Depends(get_trading_mode_service),
     economic_calendar_service: EconomicCalendarService = Depends(get_economic_calendar_service),
+    technical_analysis_service: TechnicalAnalysisService = Depends(get_technical_analysis_service),
     db: Optional[Session] = Depends(get_db)
 ) -> TradingAdvisorService:
     """
@@ -114,6 +129,7 @@ def get_trading_advisor_service(
         market_alignment_service,
         trading_mode_service,
         economic_calendar_service,
+        technical_analysis_service,
         db
     )
 
@@ -415,4 +431,44 @@ async def get_trading_recommendation(
         raise HTTPException(
             status_code=500,
             detail="Error interno al obtener la recomendación de trading"
+        )
+
+
+@router.get(
+    "/technical-analysis",
+    summary="Obtiene análisis técnico avanzado multi-temporalidad (Daily, H4, H1)",
+    description="Analiza tendencias, RSI, estructura de precio y soporte/resistencia en múltiples timeframes."
+)
+async def get_technical_analysis(
+    instrument: str = Query(
+        "XAUUSD",
+        description="Instrumento a analizar (ej: XAUUSD)",
+        min_length=3,
+        max_length=10,
+        pattern="^[A-Z0-9]{3,10}$"
+    ),
+    service: TechnicalAnalysisService = Depends(get_technical_analysis_service)
+) -> dict:
+    """
+    Endpoint para obtener análisis técnico avanzado multi-temporalidad.
+    @param instrument - Instrumento a analizar.
+    @param service - Servicio de análisis técnico.
+    @returns Análisis técnico en Daily, H4 y H1.
+    """
+    try:
+        validated_instrument = InstrumentValidator.validate_instrument(instrument)
+        logger.info(f"Fetching technical analysis for {validated_instrument}")
+        result = await service.analyze_multi_timeframe(instrument=validated_instrument)
+        logger.info(f"Technical analysis completed for {validated_instrument}")
+        return result
+    except ValueError as e:
+        logger.warning(f"Invalid parameter: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error fetching technical analysis: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno al obtener el análisis técnico"
         )

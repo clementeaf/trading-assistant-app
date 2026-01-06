@@ -42,6 +42,18 @@ class TradeRecommendation(BaseModel):
     support_level: Optional[float] = Field(None, description="Nivel de soporte identificado")
     resistance_level: Optional[float] = Field(None, description="Nivel de resistencia identificado")
     
+    # Análisis técnico avanzado multi-temporalidad
+    daily_trend: Optional[str] = Field(None, description="Tendencia diaria (alcista/bajista/lateral)")
+    h4_trend: Optional[str] = Field(None, description="Tendencia H4 (alcista/bajista/lateral)")
+    h4_rsi: Optional[float] = Field(None, description="RSI en H4")
+    h4_rsi_zone: Optional[float] = Field(None, description="Zona de RSI H4 (55/50/45)")
+    h4_impulse_direction: Optional[str] = Field(None, description="Dirección del último impulso H4")
+    h4_impulse_strong: Optional[bool] = Field(None, description="Si el impulso H4 es fuerte")
+    h4_impulse_distance_percent: Optional[float] = Field(None, description="Distancia del impulso H4 en %")
+    h1_trend: Optional[str] = Field(None, description="Tendencia H1 para confirmación")
+    price_near_support: Optional[bool] = Field(None, description="Si el precio está cerca del soporte")
+    price_near_resistance: Optional[bool] = Field(None, description="Si el precio está cerca de la resistencia")
+    
     # Contexto del mercado
     market_context: str = Field(..., description="Contexto del mercado (risk-on/risk-off/neutral)")
     trading_mode: str = Field(..., description="Modo de trading recomendado (calma/agresivo/etc)")

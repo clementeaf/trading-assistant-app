@@ -19,6 +19,7 @@ from app.services.economic_calendar_service import EconomicCalendarService
 from app.services.market_alignment_service import MarketAlignmentService
 from app.services.market_analysis_service import MarketAnalysisService
 from app.services.trading_mode_service import TradingModeService
+from app.services.technical_analysis_service import TechnicalAnalysisService
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class TradingAdvisorService:
         market_alignment_service: MarketAlignmentService,
         trading_mode_service: TradingModeService,
         economic_calendar_service: EconomicCalendarService,
+        technical_analysis_service: Optional[TechnicalAnalysisService] = None,
         db: Optional[Session] = None
     ):
         """
@@ -42,6 +44,7 @@ class TradingAdvisorService:
         @param market_alignment_service - Servicio de alineación de mercado
         @param trading_mode_service - Servicio de modo de trading
         @param economic_calendar_service - Servicio de calendario económico
+        @param technical_analysis_service - Servicio de análisis técnico avanzado (opcional)
         @param db - Sesión de base de datos (opcional)
         """
         self.settings = settings
@@ -49,6 +52,7 @@ class TradingAdvisorService:
         self.market_alignment_service = market_alignment_service
         self.trading_mode_service = trading_mode_service
         self.economic_calendar_service = economic_calendar_service
+        self.technical_analysis_service = technical_analysis_service
         self.db = db
     
     async def get_trading_recommendation(
@@ -73,6 +77,15 @@ class TradingAdvisorService:
             instrument, bond_symbol, time_window_minutes
         )
         high_impact_news = await self.economic_calendar_service.get_high_impact_news_today()
+        
+        # Análisis técnico avanzado multi-temporalidad (opcional)
+        technical_analysis = None
+        if self.technical_analysis_service:
+            try:
+                technical_analysis = await self.technical_analysis_service.analyze_multi_timeframe(instrument)
+                logger.info("Advanced technical analysis completed")
+            except Exception as e:
+                logger.warning(f"Could not perform advanced technical analysis: {str(e)}")
         
         # Obtener precio actual (último cierre disponible)
         current_price = yesterday_analysis.current_day_close
@@ -136,6 +149,39 @@ class TradingAdvisorService:
         analysis_datetime = now.isoformat()
         current_datetime = now.isoformat()
         
+        # Extraer información del análisis técnico avanzado si está disponible
+        daily_trend = None
+        h4_trend = None
+        h4_rsi = None
+        h4_rsi_zone = None
+        h4_impulse_direction = None
+        h4_impulse_strong = None
+        h4_impulse_distance_percent = None
+        h1_trend = None
+        price_near_support = None
+        price_near_resistance = None
+        
+        if technical_analysis:
+            daily_trend = technical_analysis.get("daily", {}).get("trend")
+            h4_data = technical_analysis.get("h4", {})
+            h4_trend = h4_data.get("trend")
+            h4_rsi = h4_data.get("rsi")
+            h4_rsi_zone = h4_data.get("rsi_zone")
+            h4_impulse_direction = h4_data.get("impulse_direction")
+            h4_impulse_strong = h4_data.get("impulse_strong")
+            h4_impulse_distance_percent = h4_data.get("impulse_distance_percent")
+            h1_trend = technical_analysis.get("h1", {}).get("trend")
+            price_near_support = h4_data.get("near_support")
+            price_near_resistance = h4_data.get("near_resistance")
+            
+            # Usar soporte/resistencia del análisis técnico si está disponible
+            h4_support = h4_data.get("support")
+            h4_resistance = h4_data.get("resistance")
+            if h4_support and not support:
+                support = h4_support
+            if h4_resistance and not resistance:
+                resistance = h4_resistance
+        
         return TradeRecommendation(
             analysis_date=analysis_date,
             analysis_datetime=analysis_datetime,
@@ -152,6 +198,16 @@ class TradingAdvisorService:
             resistance_level=resistance,
             market_context=alignment_analysis.market_bias.value,
             trading_mode=trading_mode_rec.mode.value,
+            daily_trend=daily_trend,
+            h4_trend=h4_trend,
+            h4_rsi=h4_rsi,
+            h4_rsi_zone=h4_rsi_zone,
+            h4_impulse_direction=h4_impulse_direction,
+            h4_impulse_strong=h4_impulse_strong,
+            h4_impulse_distance_percent=h4_impulse_distance_percent,
+            h1_trend=h1_trend,
+            price_near_support=price_near_support,
+            price_near_resistance=price_near_resistance,
             reasons=reasons,
             summary=summary,
             detailed_explanation=detailed_explanation,
