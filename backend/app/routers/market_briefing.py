@@ -68,6 +68,19 @@ def get_market_alignment_service(
     return MarketAlignmentService(settings, db)
 
 
+def get_psychological_levels_service(
+    settings: Settings = Depends(get_settings),
+    db: Optional[Session] = Depends(get_db)
+) -> PsychologicalLevelsService:
+    """
+    Dependency para obtener el servicio de niveles psicológicos
+    @param settings - Configuración de la aplicación
+    @param db - Sesión de base de datos
+    @returns Instancia del servicio de niveles psicológicos
+    """
+    return PsychologicalLevelsService(settings, db)
+
+
 def get_technical_analysis_service(
     settings: Settings = Depends(get_settings),
     db: Optional[Session] = Depends(get_db),
@@ -81,19 +94,6 @@ def get_technical_analysis_service(
     @returns Instancia del servicio de análisis técnico
     """
     return TechnicalAnalysisService(settings, db, psychological_levels_service)
-
-
-def get_psychological_levels_service(
-    settings: Settings = Depends(get_settings),
-    db: Optional[Session] = Depends(get_db)
-) -> PsychologicalLevelsService:
-    """
-    Dependency para obtener el servicio de niveles psicológicos
-    @param settings - Configuración de la aplicación
-    @param db - Sesión de base de datos
-    @returns Instancia del servicio de niveles psicológicos
-    """
-    return PsychologicalLevelsService(settings, db)
 
 
 def get_trading_mode_service(
