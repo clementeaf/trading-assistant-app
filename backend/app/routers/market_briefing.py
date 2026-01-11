@@ -15,6 +15,7 @@ from app.models.market_alignment import MarketAlignmentAnalysis
 from app.models.psychological_levels import PsychologicalLevelsResponse
 from app.models.trading_mode import TradingModeRecommendation
 from app.models.trading_recommendation import TradeRecommendation
+from app.models.daily_summary import DailySummary, MarketContext
 from app.services.economic_calendar_service import EconomicCalendarService
 from app.services.market_analysis_service import MarketAnalysisService
 from app.services.market_alignment_service import MarketAlignmentService
@@ -22,6 +23,7 @@ from app.services.psychological_levels_service import PsychologicalLevelsService
 from app.services.trading_mode_service import TradingModeService
 from app.services.trading_advisor_service import TradingAdvisorService
 from app.services.technical_analysis_service import TechnicalAnalysisService
+from app.services.llm_service import LLMService
 from app.utils.validators import CurrencyValidator, InstrumentValidator
 
 logger = logging.getLogger(__name__)
@@ -149,6 +151,17 @@ def get_trading_advisor_service(
         technical_analysis_service,
         db
     )
+
+
+def get_llm_service(
+    settings: Settings = Depends(get_settings)
+) -> LLMService:
+    """
+    Dependency para obtener el servicio LLM
+    @param settings - Configuración de la aplicación
+    @returns Instancia del servicio LLM
+    """
+    return LLMService(settings)
 
 
 @router.get(
@@ -597,3 +610,116 @@ async def get_psychological_levels(
             status_code=500,
             detail="Error interno al obtener niveles psicológicos"
         )
+
+
+@router.get(
+    "/daily-summary",
+    response_model=DailySummary,
+    summary="Genera resumen ejecutivo diario del mercado con LLM",
+    description="Resumen en lenguaje natural combinando noticias, análisis técnico, macro context y recomendaciones. Generado por GPT-4."
+)
+async def get_daily_summary(
+    instrument: str = Query(
+        "XAUUSD",
+        description="Instrumento a analizar (ej: XAUUSD)",
+        min_length=3,
+        max_length=10,
+        pattern="^[A-Z0-9]{3,10}$"
+    ),
+    language: str = Query(
+        "es",
+        description="Idioma del resumen (es, en)",
+        pattern="^(es|en)$"
+    ),
+    detail_level: str = Query(
+        "standard",
+        description="Nivel de detalle (brief, standard, detailed)",
+        pattern="^(brief|standard|detailed)$"
+    ),
+    economic_calendar_service: EconomicCalendarService = Depends(get_economic_calendar_service),
+    market_analysis_service: MarketAnalysisService = Depends(get_market_analysis_service),
+    market_alignment_service: MarketAlignmentService = Depends(get_market_alignment_service),
+    trading_mode_service: TradingModeService = Depends(get_trading_mode_service),
+    llm_service: LLMService = Depends(get_llm_service)
+) -> DailySummary:
+    """
+    Endpoint para generar resumen ejecutivo diario usando LLM (GPT-4).
+    Combina todos los análisis del sistema en un resumen legible de 200-300 palabras.
+    
+    @param instrument - Instrumento a analizar
+    @param language - Idioma del resumen (es, en)
+    @param detail_level - Nivel de detalle (brief, standard, detailed)
+    @param economic_calendar_service - Servicio de calendario económico
+    @param market_analysis_service - Servicio de análisis de mercado
+    @param market_alignment_service - Servicio de alineación macro
+    @param trading_mode_service - Servicio de modo de trading
+    @param llm_service - Servicio LLM
+    @returns Resumen ejecutivo generado por LLM
+    """
+    try:
+        validated_instrument = InstrumentValidator.validate_instrument(instrument)
+        logger.info(f"Generating daily summary for {validated_instrument} (language: {language}, detail: {detail_level})")
+        
+        # 1. Obtener análisis de ayer
+        yesterday_analysis = await market_analysis_service.analyze_yesterday_sessions(instrument=validated_instrument)
+        
+        # 2. Obtener noticias de alto impacto
+        news = await economic_calendar_service.get_high_impact_news_today()
+        
+        # 3. Obtener alineación DXY-Bonds con correlación Gold
+        alignment = await market_alignment_service.analyze_dxy_bond_alignment(
+            bond_symbol="US10Y",
+            include_gold_correlation=True,
+            gold_symbol=validated_instrument,
+            correlation_days=30
+        )
+        
+        # 4. Obtener modo de trading
+        trading_mode = await trading_mode_service.get_trading_mode_recommendation(
+            instrument=validated_instrument,
+            bond_symbol="US10Y",
+            time_window_minutes=120
+        )
+        
+        # 5. Obtener precio actual (del análisis de ayer)
+        current_price = yesterday_analysis.close_price  # Aproximación (último cierre)
+        
+        # 6. Construir contexto para LLM
+        context = MarketContext(
+            high_impact_news_count=news.count,
+            geopolitical_risk_level=news.geopolitical_risk.level if news.geopolitical_risk else "LOW",
+            market_bias=alignment.market_bias,
+            trading_mode=trading_mode.mode,
+            gold_dxy_correlation=alignment.gold_dxy_correlation.coefficient if alignment.gold_dxy_correlation else None
+        )
+        
+        # 7. Generar resumen con LLM
+        summary = await llm_service.generate_daily_summary(
+            context=context,
+            yesterday_close=yesterday_analysis.close_price,
+            yesterday_change_percent=yesterday_analysis.change_percent,
+            current_price=current_price,
+            language=language,
+            detail_level=detail_level
+        )
+        
+        logger.info(
+            f"Daily summary generated successfully for {validated_instrument} "
+            f"(sentiment: {summary.market_sentiment}, action: {summary.recommended_action}, "
+            f"confidence: {summary.confidence_level:.2f})"
+        )
+        
+        return summary
+        
+    except ValueError as e:
+        logger.warning(f"Invalid parameter: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error generating daily summary: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno al generar resumen diario: {str(e)}"
+        )
+

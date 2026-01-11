@@ -72,6 +72,24 @@ class Settings(BaseSettings):
         description="API key para FRED (gratis en https://fred.stlouisfed.org/docs/api/api_key.html)"
     )
     
+    # LLM Configuration (OpenAI)
+    openai_api_key: Optional[str] = Field(
+        default=None,
+        description="API key para OpenAI (GPT-4, GPT-3.5-turbo)"
+    )
+    openai_model: str = Field(
+        default="gpt-4-turbo-preview",
+        description="Modelo de OpenAI a usar (gpt-4-turbo-preview, gpt-4o, gpt-3.5-turbo)"
+    )
+    openai_max_tokens: int = Field(
+        default=500,
+        description="Máximo de tokens en respuesta del LLM"
+    )
+    openai_temperature: float = Field(
+        default=0.7,
+        description="Temperatura del LLM (0.0-1.0, menor = más determinista)"
+    )
+    
     class Config:
         """Configuración de Pydantic"""
         env_file = ".env"

@@ -1,0 +1,271 @@
+"""
+Servicio para integración con LLM (OpenAI GPT)
+"""
+import logging
+import json
+from typing import Optional, Dict, Any
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletion
+
+from app.config.settings import Settings
+from app.models.daily_summary import DailySummary, MarketContext
+
+logger = logging.getLogger(__name__)
+
+
+class LLMService:
+    """
+    Servicio para interactuar con modelos de lenguaje (OpenAI GPT)
+    """
+    
+    def __init__(self, settings: Settings):
+        """
+        Inicializa el servicio LLM
+        
+        Args:
+            settings: Configuración de la aplicación
+        """
+        self.settings = settings
+        self.client: Optional[AsyncOpenAI] = None
+        
+        if settings.openai_api_key:
+            self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        else:
+            logger.warning("OpenAI API key not configured. LLM features will be disabled.")
+    
+    async def generate_daily_summary(
+        self,
+        context: MarketContext,
+        yesterday_close: float,
+        yesterday_change_percent: float,
+        current_price: float,
+        language: str = "es",
+        detail_level: str = "standard"
+    ) -> DailySummary:
+        """
+        Genera un resumen ejecutivo diario del mercado usando LLM
+        
+        Args:
+            context: Contexto de mercado (noticias, bias, modo, correlación)
+            yesterday_close: Precio de cierre de ayer
+            yesterday_change_percent: Cambio porcentual de ayer
+            current_price: Precio actual
+            language: Idioma del resumen (es, en)
+            detail_level: Nivel de detalle (brief, standard, detailed)
+        
+        Returns:
+            DailySummary: Resumen ejecutivo generado
+        
+        Raises:
+            ValueError: Si el servicio LLM no está configurado
+            Exception: Si falla la generación del resumen
+        """
+        if not self.client:
+            raise ValueError(
+                "LLM service not configured. Please set OPENAI_API_KEY in environment."
+            )
+        
+        # Construir el prompt
+        prompt = self._build_daily_summary_prompt(
+            context=context,
+            yesterday_close=yesterday_close,
+            yesterday_change_percent=yesterday_change_percent,
+            current_price=current_price,
+            language=language,
+            detail_level=detail_level
+        )
+        
+        try:
+            logger.info(f"Generating daily summary with {self.settings.openai_model}")
+            
+            # Llamar a OpenAI
+            response: ChatCompletion = await self.client.chat.completions.create(
+                model=self.settings.openai_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self._get_system_prompt(language)
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=self.settings.openai_temperature,
+                max_tokens=self.settings.openai_max_tokens,
+                response_format={"type": "json_object"}  # Force JSON output
+            )
+            
+            # Extraer respuesta
+            content = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens if response.usage else None
+            
+            logger.info(f"LLM response received (tokens: {tokens_used})")
+            
+            # Parsear JSON response
+            summary_data = json.loads(content)
+            
+            # Construir DailySummary
+            summary = DailySummary(
+                summary=summary_data["summary"],
+                key_points=summary_data["key_points"],
+                market_sentiment=summary_data["market_sentiment"],
+                recommended_action=summary_data["recommended_action"],
+                confidence_level=summary_data["confidence_level"],
+                context=context,
+                model_used=self.settings.openai_model,
+                tokens_used=tokens_used
+            )
+            
+            return summary
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM response as JSON: {str(e)}")
+            raise Exception(f"Invalid JSON response from LLM: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error generating daily summary: {str(e)}", exc_info=True)
+            raise Exception(f"Failed to generate daily summary: {str(e)}")
+    
+    def _get_system_prompt(self, language: str) -> str:
+        """
+        Obtiene el system prompt según el idioma
+        
+        Args:
+            language: Código de idioma (es, en)
+        
+        Returns:
+            str: System prompt
+        """
+        if language == "es":
+            return """Eres un analista experto de mercados financieros especializado en Gold (XAU/USD).
+
+Tu tarea es generar resúmenes ejecutivos diarios para traders profesionales.
+
+IMPORTANTE:
+- Usa lenguaje claro y profesional
+- Enfócate en probabilidades, no certezas
+- Menciona factores clave: noticias, correlaciones, niveles técnicos
+- Sé conciso pero informativo
+- SIEMPRE responde en formato JSON con esta estructura exacta:
+
+{
+  "summary": "Resumen de 200-300 palabras...",
+  "key_points": ["Punto 1", "Punto 2", "Punto 3"],
+  "market_sentiment": "BULLISH|BEARISH|NEUTRAL",
+  "recommended_action": "TRADE_ACTIVELY|TRADE_CAUTIOUSLY|OBSERVE",
+  "confidence_level": 0.75
+}
+
+NO agregues texto fuera del JSON."""
+        else:  # English
+            return """You are an expert financial market analyst specialized in Gold (XAU/USD).
+
+Your task is to generate daily executive summaries for professional traders.
+
+IMPORTANT:
+- Use clear, professional language
+- Focus on probabilities, not certainties
+- Mention key factors: news, correlations, technical levels
+- Be concise but informative
+- ALWAYS respond in JSON format with this exact structure:
+
+{
+  "summary": "200-300 word summary...",
+  "key_points": ["Point 1", "Point 2", "Point 3"],
+  "market_sentiment": "BULLISH|BEARISH|NEUTRAL",
+  "recommended_action": "TRADE_ACTIVELY|TRADE_CAUTIOUSLY|OBSERVE",
+  "confidence_level": 0.75
+}
+
+DO NOT add text outside the JSON."""
+    
+    def _build_daily_summary_prompt(
+        self,
+        context: MarketContext,
+        yesterday_close: float,
+        yesterday_change_percent: float,
+        current_price: float,
+        language: str,
+        detail_level: str
+    ) -> str:
+        """
+        Construye el prompt para generar el resumen diario
+        
+        Args:
+            context: Contexto de mercado
+            yesterday_close: Precio de cierre de ayer
+            yesterday_change_percent: Cambio porcentual de ayer
+            current_price: Precio actual
+            language: Idioma del resumen
+            detail_level: Nivel de detalle
+        
+        Returns:
+            str: Prompt completo
+        """
+        if language == "es":
+            detail_instruction = {
+                "brief": "Sé muy conciso (150-200 palabras).",
+                "standard": "Usa ~250 palabras.",
+                "detailed": "Sé detallado (300-400 palabras)."
+            }.get(detail_level, "Usa ~250 palabras.")
+            
+            # Formatear correlación
+            correlation_text = f"{context.gold_dxy_correlation:.2f}" if context.gold_dxy_correlation is not None else "N/A"
+            
+            prompt = f"""Genera un resumen ejecutivo para Gold (XAU/USD) hoy.
+
+DATOS DEL MERCADO:
+- Ayer cerró en: ${yesterday_close:.2f} ({yesterday_change_percent:+.2f}%)
+- Precio actual: ${current_price:.2f}
+- Noticias de alto impacto hoy: {context.high_impact_news_count}
+- Riesgo geopolítico: {context.geopolitical_risk_level}
+- Sesgo macro (DXY-Bonds): {context.market_bias}
+- Correlación Gold-DXY: {correlation_text}
+- Modo de trading recomendado: {context.trading_mode}
+
+INSTRUCCIONES:
+{detail_instruction}
+
+Incluye en tu análisis:
+1. Resumen de movimiento de ayer y contexto
+2. Factores clave hoy (noticias, geopolítica, correlaciones)
+3. Sesgo direccional (alcista/bajista/neutral) con probabilidad
+4. Recomendación operativa (tradear activamente/con cautela/observar)
+5. Niveles clave a vigilar (aproximados según contexto)
+
+Responde SOLO con el JSON (sin markdown, sin explicaciones extra)."""
+        
+        else:  # English
+            detail_instruction = {
+                "brief": "Be very concise (150-200 words).",
+                "standard": "Use ~250 words.",
+                "detailed": "Be detailed (300-400 words)."
+            }.get(detail_level, "Use ~250 words.")
+            
+            # Format correlation
+            correlation_text = f"{context.gold_dxy_correlation:.2f}" if context.gold_dxy_correlation is not None else "N/A"
+            
+            prompt = f"""Generate an executive summary for Gold (XAU/USD) today.
+
+MARKET DATA:
+- Yesterday closed at: ${yesterday_close:.2f} ({yesterday_change_percent:+.2f}%)
+- Current price: ${current_price:.2f}
+- High impact news today: {context.high_impact_news_count}
+- Geopolitical risk: {context.geopolitical_risk_level}
+- Macro bias (DXY-Bonds): {context.market_bias}
+- Gold-DXY correlation: {correlation_text}
+- Recommended trading mode: {context.trading_mode}
+
+INSTRUCTIONS:
+{detail_instruction}
+
+Include in your analysis:
+1. Summary of yesterday's move and context
+2. Key factors today (news, geopolitics, correlations)
+3. Directional bias (bullish/bearish/neutral) with probability
+4. Trading recommendation (active/cautious/observe)
+5. Key levels to watch (approximate based on context)
+
+Respond ONLY with JSON (no markdown, no extra explanations)."""
+        
+        return prompt
