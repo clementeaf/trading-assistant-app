@@ -101,6 +101,10 @@ class TechnicalAnalysisService:
         last_business_day = BusinessDays.get_last_business_day(today)
         
         # Calcular rangos de fechas para cada timeframe
+        # Weekly: últimos 52 semanas (1 año)
+        weekly_start = datetime.combine(last_business_day - timedelta(days=365), datetime.min.time())
+        weekly_end = datetime.combine(last_business_day, datetime.max.time())
+        
         # Daily: últimos 30 días
         daily_start = datetime.combine(last_business_day - timedelta(days=30), datetime.min.time())
         daily_end = datetime.combine(last_business_day, datetime.max.time())
@@ -114,6 +118,9 @@ class TechnicalAnalysisService:
         h1_end = datetime.now()
         
         # Obtener datos de cada timeframe (primero de BD, luego de API si es necesario)
+        weekly_candles = await self._get_candles_with_cache(
+            instrument, weekly_start, weekly_end, "1week", "Weekly"
+        )
         daily_candles = await self._get_candles_with_cache(
             instrument, daily_start, daily_end, "1day", "Daily"
         )
@@ -125,8 +132,18 @@ class TechnicalAnalysisService:
         )
         
         logger.info(
-            f"Fetched candles: Daily={len(daily_candles)}, H4={len(h4_candles)}, H1={len(h1_candles)}"
+            f"Fetched candles: Weekly={len(weekly_candles)}, Daily={len(daily_candles)}, "
+            f"H4={len(h4_candles)}, H1={len(h1_candles)}"
         )
+        
+        # Análisis Weekly (contexto de largo plazo)
+        try:
+            weekly_analysis = self._analyze_timeframe(
+                weekly_candles, "Weekly", instrument
+            )
+        except Exception as e:
+            logger.error(f"Error analyzing Weekly timeframe: {str(e)}", exc_info=True)
+            weekly_analysis = {"timeframe": "Weekly", "error": str(e)}
         
         # Análisis Daily
         try:
@@ -156,7 +173,7 @@ class TechnicalAnalysisService:
             h1_analysis = {"timeframe": "H1", "error": str(e)}
         
         try:
-            summary = self._generate_summary(daily_analysis, h4_analysis, h1_analysis)
+            summary = self._generate_summary_with_weekly(weekly_analysis, daily_analysis, h4_analysis, h1_analysis)
         except Exception as e:
             logger.error(f"Error generating summary: {str(e)}")
             summary = "Error generating summary"
@@ -256,6 +273,7 @@ class TechnicalAnalysisService:
         return {
             "instrument": instrument,
             "analysis_date": last_business_day.isoformat(),
+            "weekly": weekly_analysis,
             "daily": daily_analysis,
             "h4": h4_analysis,
             "h1": h1_analysis,
@@ -283,6 +301,7 @@ class TechnicalAnalysisService:
         """
         # Mapear intervalos para BD (usar formato estándar)
         interval_mapping = {
+            "1week": "1w",
             "1day": "1d",
             "4h": "4h",
             "1h": "1h"
@@ -316,9 +335,10 @@ class TechnicalAnalysisService:
             # Para H1, actualizar si la última vela tiene más de 2 horas
             # Para Daily, actualizar si la última vela tiene más de 1 día
             update_thresholds = {
+                "Weekly": timedelta(days=7),
+                "Daily": timedelta(days=1),
                 "H4": timedelta(hours=5),
-                "H1": timedelta(hours=2),
-                "Daily": timedelta(days=1)
+                "H1": timedelta(hours=2)
             }
             threshold = update_thresholds.get(timeframe_name, timedelta(hours=4))
             
@@ -586,6 +606,88 @@ class TechnicalAnalysisService:
             f"Retesteo de {level_type} en {level:.0f} con {pattern_text}. "
             f"Probabilidad de rebote: {prob_percent}%"
         )
+    
+    def _generate_summary_with_weekly(
+        self,
+        weekly_analysis: dict,
+        daily_analysis: dict,
+        h4_analysis: dict,
+        h1_analysis: dict
+    ) -> str:
+        """
+        Genera un resumen del análisis multi-temporalidad incluyendo Weekly
+        @param weekly_analysis - Análisis semanal
+        @param daily_analysis - Análisis diario
+        @param h4_analysis - Análisis H4
+        @param h1_analysis - Análisis H1
+        @returns Resumen textual
+        """
+        parts: list[str] = []
+        
+        # Tendencia semanal (largo plazo)
+        if "trend" in weekly_analysis:
+            trend_text = {
+                "alcista": "Alcista",
+                "bajista": "Bajista",
+                "lateral": "Lateral"
+            }.get(weekly_analysis["trend"], weekly_analysis["trend"])
+            parts.append(f"Tendencia Semanal (Largo Plazo): {trend_text}")
+        
+        # Tendencia diaria
+        if "trend" in daily_analysis:
+            trend_text = {
+                "alcista": "Alcista",
+                "bajista": "Bajista",
+                "lateral": "Lateral"
+            }.get(daily_analysis["trend"], daily_analysis["trend"])
+            parts.append(f"Tendencia Diaria: {trend_text}")
+        
+        # Análisis H4
+        if "trend" in h4_analysis:
+            h4_trend = {
+                "alcista": "Alcista",
+                "bajista": "Bajista",
+                "lateral": "Lateral"
+            }.get(h4_analysis["trend"], h4_analysis["trend"])
+            parts.append(f"H4: {h4_trend}")
+        
+        # RSI H4 (si está disponible)
+        if "rsi" in h4_analysis and h4_analysis["rsi"] is not None:
+            parts.append(f"RSI H4: {h4_analysis['rsi']:.1f}")
+        
+        # Confirmación H1
+        if "trend" in h1_analysis:
+            h1_trend = {
+                "alcista": "Confirmación alcista",
+                "bajista": "Confirmación bajista",
+                "lateral": "Sin confirmación clara"
+            }.get(h1_analysis["trend"], h1_analysis["trend"])
+            parts.append(f"H1: {h1_trend}")
+        
+        # Detectar convergencia multi-TF
+        trends = {}
+        if "trend" in weekly_analysis:
+            trends["weekly"] = MarketDirection(weekly_analysis["trend"])
+        if "trend" in daily_analysis:
+            trends["daily"] = MarketDirection(daily_analysis["trend"])
+        if "trend" in h4_analysis:
+            trends["daily"] = MarketDirection(h4_analysis["trend"])
+        if "trend" in h1_analysis:
+            trends["h1"] = MarketDirection(h1_analysis["trend"])
+        
+        if trends:
+            convergence = MultiTimeframeAnalyzer.detect_convergence(trends)
+            if convergence in [TimeframeConvergence.FULL_BULLISH, TimeframeConvergence.FULL_BEARISH]:
+                conv_text = "TOTAL alcista" if convergence == TimeframeConvergence.FULL_BULLISH else "TOTAL bajista"
+                parts.append(f"⚠️ Convergencia {conv_text}")
+            elif convergence in [TimeframeConvergence.PARTIAL_BULLISH, TimeframeConvergence.PARTIAL_BEARISH]:
+                conv_text = "parcial alcista" if convergence == TimeframeConvergence.PARTIAL_BULLISH else "parcial bajista"
+                parts.append(f"Convergencia {conv_text}")
+        
+        if not parts:
+            return "Análisis multi-temporalidad completado"
+        
+        return ". ".join(parts) + "."
     
     def _generate_summary(
         self,
