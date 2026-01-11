@@ -14,6 +14,8 @@ from app.models.economic_calendar import (
     EventScheduleResponse,
     HighImpactNewsResponse,
     ImpactLevel,
+    UpcomingEvent,
+    UpcomingEventsResponse,
 )
 from app.providers.base_provider import EconomicCalendarProvider
 from app.providers.mock_provider import MockProvider
@@ -23,6 +25,7 @@ from app.utils.schedule_formatter import ScheduleFormatter
 from app.utils.xauusd_filter import XAUUSDFilter
 from app.utils.business_days import BusinessDays
 from app.utils.geopolitical_analyzer import GeopoliticalAnalyzer
+from app.utils.event_categorizer import EventCategorizer
 
 logger = logging.getLogger(__name__)
 
