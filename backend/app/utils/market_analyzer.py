@@ -11,6 +11,8 @@ from app.models.market_analysis import (
     SessionType
 )
 from app.utils.trading_sessions import TradingSessions
+from app.utils.volatility_calculator import VolatilityCalculator
+from app.utils.psychological_level_detector import PsychologicalLevelDetector
 
 
 class MarketAnalyzer:
@@ -48,7 +50,8 @@ class MarketAnalyzer:
         session: SessionType,
         candles: list[PriceCandle],
         previous_day_high: Optional[float] = None,
-        previous_day_low: Optional[float] = None
+        previous_day_low: Optional[float] = None,
+        historical_candles: Optional[list[PriceCandle]] = None
     ) -> SessionAnalysis:
         """
         Analiza una sesión de trading
@@ -56,6 +59,7 @@ class MarketAnalyzer:
         @param candles - Lista de velas de la sesión
         @param previous_day_high - Máximo del día anterior (opcional)
         @param previous_day_low - Mínimo del día anterior (opcional)
+        @param historical_candles - Velas históricas para análisis de volatilidad (opcional)
         @returns Análisis de la sesión
         """
         if not candles:
@@ -84,9 +88,21 @@ class MarketAnalyzer:
         
         start_time, end_time = TradingSessions.get_session_time_range(session)
         
+        # Calcular volatilidad de la sesión
+        volatility = VolatilityCalculator.analyze_session_volatility(
+            session_candles=sorted_candles,
+            historical_candles=historical_candles
+        )
+        
+        # Detectar rupturas de niveles psicológicos
+        psychological_breaks = PsychologicalLevelDetector.detect_breaks_in_session(
+            candles=sorted_candles,
+            tolerance=5.0
+        )
+        
         description = cls._generate_session_description(
             session, direction, range_value, open_price, change_percent,
-            broke_previous_high, broke_previous_low
+            broke_previous_high, broke_previous_low, volatility, psychological_breaks
         )
         
         return SessionAnalysis(
@@ -102,7 +118,9 @@ class MarketAnalyzer:
             change_percent=change_percent,
             broke_previous_high=broke_previous_high,
             broke_previous_low=broke_previous_low,
-            description=description
+            description=description,
+            volatility=volatility,
+            psychological_breaks=psychological_breaks
         )
     
     @classmethod
@@ -114,7 +132,9 @@ class MarketAnalyzer:
         open_price: float,
         change_percent: float,
         broke_previous_high: bool,
-        broke_previous_low: bool
+        broke_previous_low: bool,
+        volatility: Optional[dict] = None,
+        psychological_breaks: Optional[list] = None
     ) -> str:
         """
         Genera una descripción textual de la sesión
@@ -125,6 +145,8 @@ class MarketAnalyzer:
         @param change_percent - Cambio porcentual
         @param broke_previous_high - Si rompió máximo anterior
         @param broke_previous_low - Si rompió mínimo anterior
+        @param volatility - Análisis de volatilidad (opcional)
+        @param psychological_breaks - Rupturas de niveles psicológicos (opcional)
         @returns Descripción textual
         """
         session_names = {
@@ -159,16 +181,25 @@ class MarketAnalyzer:
         else:
             direction_desc = "movimiento lateral"
         
-        # Construir descripción
-        if direction == MarketDirection.NEUTRAL:
-            description = f"Sesión {session_name}: {range_desc}, {direction_desc}"
-        else:
-            description = f"Sesión {session_name}: {range_desc}, {direction_desc}"
+        # Construir descripción base
+        description = f"Sesión {session_name}: {range_desc}, {direction_desc}"
+        
+        # Agregar volatilidad si está disponible
+        if volatility:
+            vol_level = volatility.get("level", "normal")
+            if vol_level != "normal":
+                description += f", volatilidad {vol_level}"
         
         if broke_previous_high:
             description += " rompiendo el máximo del día anterior"
         elif broke_previous_low:
             description += " rompiendo el mínimo del día anterior"
+        
+        # Agregar información de rupturas de niveles psicológicos
+        if psychological_breaks:
+            breaks_text = PsychologicalLevelDetector.format_breaks_description(psychological_breaks)
+            if breaks_text:
+                description += f". {breaks_text}"
         
         return description
     

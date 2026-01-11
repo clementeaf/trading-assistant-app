@@ -15,6 +15,7 @@ from app.providers.market_data.twelve_data_provider import TwelveDataProvider
 from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
 from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.repositories.market_data_repository import MarketDataRepository
+from app.services.psychological_levels_service import PsychologicalLevelsService
 from app.utils.business_days import BusinessDays
 from app.utils.technical_analysis import TechnicalAnalysis
 
@@ -24,16 +25,23 @@ logger = logging.getLogger(__name__)
 class TechnicalAnalysisService:
     """Servicio de análisis técnico avanzado"""
     
-    def __init__(self, settings: Settings, db: Optional[Session] = None):
+    def __init__(
+        self,
+        settings: Settings,
+        db: Optional[Session] = None,
+        psychological_levels_service: Optional[PsychologicalLevelsService] = None
+    ):
         """
         Inicializa el servicio de análisis técnico
         @param settings - Configuración de la aplicación
         @param db - Sesión de base de datos (opcional)
+        @param psychological_levels_service - Servicio de niveles (opcional)
         """
         self.settings = settings
         self.provider = self._create_provider(settings)
         self.db = db
         self.market_data_repo = MarketDataRepository(db)
+        self.psychological_levels_service = psychological_levels_service
     
     def _create_provider(self, settings: Settings) -> MarketDataProvider:
         """
@@ -337,6 +345,41 @@ class TechnicalAnalysisService:
             near_support = TechnicalAnalysis.is_price_near_level(current_price, support)
         if resistance:
             near_resistance = TechnicalAnalysis.is_price_near_level(current_price, resistance)
+            
+        # Análisis de niveles psicológicos (si el servicio está disponible)
+        psychological_context = None
+        retests = []
+        if self.psychological_levels_service:
+            try:
+                # Usar las velas ya obtenidas para analizar niveles
+                # Convertir PriceCandle a formato esperado si es necesario
+                # Nota: analyze_levels_from_candles espera list[PriceCandle]
+                psych_analysis = self.psychological_levels_service.analyze_levels_from_candles(
+                    instrument=instrument,
+                    current_price=current_price,
+                    candles=sorted_candles,  # Usar velas ordenadas
+                    max_distance_points=100.0 if timeframe == "H4" else 50.0  # Ajustar distancia por TF
+                )
+                
+                # Convertir a dict para serialización JSON
+                psychological_context = {
+                    "nearest_support": psych_analysis.nearest_support.dict() if psych_analysis.nearest_support else None,
+                    "nearest_resistance": psych_analysis.nearest_resistance.dict() if psych_analysis.nearest_resistance else None,
+                    "strongest_support": psych_analysis.strongest_support.dict() if psych_analysis.strongest_support else None,
+                    "strongest_resistance": psych_analysis.strongest_resistance.dict() if psych_analysis.strongest_resistance else None
+                }
+                
+                # Detectar retesteos
+                levels_to_check = []
+                if psych_analysis.nearest_support:
+                    levels_to_check.append(psych_analysis.nearest_support.level)
+                if psych_analysis.nearest_resistance:
+                    levels_to_check.append(psych_analysis.nearest_resistance.level)
+                
+                retests = self._detect_retests(sorted_candles, levels_to_check)
+                
+            except Exception as e:
+                logger.warning(f"Error analyzing psychological levels for {timeframe}: {str(e)}")
         
         return {
             "timeframe": timeframe,
@@ -351,12 +394,127 @@ class TechnicalAnalysisService:
             "resistance": resistance,
             "near_support": near_support,
             "near_resistance": near_resistance,
+            "psychological_context": psychological_context,
+            "retests": retests,
             "ema_50": emas.get(50),
             "ema_100": emas.get(100),
             "ema_200": emas.get(200),
             "candles_count": len(sorted_candles),
             "last_candle_time": sorted_candles[-1].timestamp.isoformat() if sorted_candles else None
         }
+
+    def _detect_retests(
+        self,
+        candles: list[PriceCandle],
+        levels: list[float],
+        lookback: int = 5
+    ) -> list[dict]:
+        """
+        Detecta retesteos recientes de niveles clave con análisis de patrones
+        @param candles - Velas ordenadas
+        @param levels - Niveles a verificar
+        @param lookback - Cuántas velas atrás mirar
+        @returns Lista de retesteos detectados con probabilidades
+        """
+        from app.utils.retest_detector import RetestDetector
+        
+        retests = []
+        if not candles or not levels:
+            return retests
+            
+        recent_candles = candles[-lookback:]
+        tolerance = 5.0  # Tolerancia en puntos
+        
+        for level in levels:
+            for i, candle in enumerate(recent_candles):
+                # Verificar si tocó el nivel
+                touched = (candle.low - tolerance <= level <= candle.high + tolerance)
+                
+                if touched:
+                    # Detectar patrón de vela
+                    previous_candle = recent_candles[i - 1] if i > 0 else None
+                    pattern = RetestDetector.detect_candle_pattern(candle, previous_candle)
+                    
+                    # Determinar tipo de nivel
+                    is_support_retest = candle.close > level and candle.low <= level + tolerance
+                    is_resistance_retest = candle.close < level and candle.high >= level - tolerance
+                    
+                    # Calcular distancia del precio al nivel
+                    price_distance_percent = ((candle.close - level) / level) * 100
+                    
+                    # Calcular probabilidad de rebote
+                    level_type = "support" if is_support_retest else "resistance"
+                    level_strength = 0.7  # Por defecto, se puede mejorar con histórico
+                    
+                    bounce_probability = RetestDetector.calculate_bounce_probability(
+                        level_type=level_type,
+                        pattern=pattern,
+                        price_distance=price_distance_percent,
+                        level_strength=level_strength
+                    )
+                    
+                    if is_support_retest:
+                        retests.append({
+                            "level": level,
+                            "type": "support_retest",
+                            "candles_ago": len(recent_candles) - 1 - i,
+                            "candle_time": candle.timestamp.isoformat(),
+                            "pattern": pattern.value,
+                            "bounce_probability": round(bounce_probability, 2),
+                            "price_at_retest": round(candle.close, 2),
+                            "description": self._format_retest_description(
+                                level, "soporte", pattern, bounce_probability
+                            )
+                        })
+                    elif is_resistance_retest:
+                        retests.append({
+                            "level": level,
+                            "type": "resistance_retest",
+                            "candles_ago": len(recent_candles) - 1 - i,
+                            "candle_time": candle.timestamp.isoformat(),
+                            "pattern": pattern.value,
+                            "bounce_probability": round(bounce_probability, 2),
+                            "price_at_retest": round(candle.close, 2),
+                            "description": self._format_retest_description(
+                                level, "resistencia", pattern, bounce_probability
+                            )
+                        })
+                        
+        return retests
+    
+    def _format_retest_description(
+        self,
+        level: float,
+        level_type: str,
+        pattern: str,
+        probability: float
+    ) -> str:
+        """
+        Formatea descripción de retesteo
+        @param level - Nivel retesteado
+        @param level_type - Tipo de nivel
+        @param pattern - Patrón detectado
+        @param probability - Probabilidad de rebote
+        @returns Descripción textual
+        """
+        pattern_names = {
+            "pin_bar_alcista": "pin bar alcista",
+            "pin_bar_bajista": "pin bar bajista",
+            "envolvente_alcista": "envolvente alcista",
+            "envolvente_bajista": "envolvente bajista",
+            "martillo": "martillo",
+            "estrella_fugaz": "estrella fugaz",
+            "doji": "doji",
+            "ninguno": "sin patrón claro"
+        }
+        
+        pattern_text = pattern_names.get(pattern, pattern)
+        prob_percent = int(probability * 100)
+        
+        return (
+            f"Retesteo de {level_type} en {level:.0f} con {pattern_text}. "
+            f"Probabilidad de rebote: {prob_percent}%"
+        )
     
     def _generate_summary(
         self,

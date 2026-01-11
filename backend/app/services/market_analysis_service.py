@@ -171,6 +171,17 @@ class MarketAnalysisService:
         previous_day_high = max(c.high for c in day_before_candles) if day_before_candles else None
         previous_day_low = min(c.low for c in day_before_candles) if day_before_candles else None
         
+        # Obtener datos históricos para análisis de volatilidad (últimos 30 días)
+        historical_start = yesterday_start - timedelta(days=30)
+        historical_candles: list[PriceCandle] = []
+        try:
+            historical_candles = await self.provider.fetch_historical_candles(
+                instrument, historical_start, yesterday_end, "1h"
+            )
+            logger.info(f"Obtained {len(historical_candles)} historical candles for volatility analysis")
+        except Exception as e:
+            logger.warning(f"Could not fetch historical data for volatility: {str(e)}")
+        
         # Agrupar velas por sesión
         sessions_analysis = []
         
@@ -182,7 +193,8 @@ class MarketAnalysisService:
                     session_type,
                     session_candles,
                     previous_day_high,
-                    previous_day_low
+                    previous_day_low,
+                    historical_candles  # Pasar datos históricos para volatilidad
                 )
                 sessions_analysis.append(session_analysis)
         

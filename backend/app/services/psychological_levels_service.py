@@ -68,11 +68,7 @@ class PsychologicalLevelsService:
         current_price = await self._get_current_price(instrument)
         logger.info(f"Current price for {instrument}: {current_price}")
 
-        # 2. Generar niveles redondos cercanos
-        round_levels = self._generate_round_levels(current_price, max_distance_points)
-        logger.info(f"Generated {len(round_levels)} round levels")
-
-        # 3. Obtener datos históricos
+        # 2. Obtener datos históricos
         end_date = datetime.now()
         start_date = end_date - timedelta(days=lookback_days)
         historical_candles = await self.provider.fetch_historical_candles(
@@ -80,15 +76,45 @@ class PsychologicalLevelsService:
         )
         logger.info(f"Fetched {len(historical_candles)} historical candles")
 
-        # 4. Analizar cada nivel
+        # 3. Analizar niveles usando la lógica extraída
+        return self.analyze_levels_from_candles(
+            instrument=instrument,
+            current_price=current_price,
+            candles=historical_candles,
+            max_distance_points=max_distance_points,
+            lookback_days=lookback_days
+        )
+
+    def analyze_levels_from_candles(
+        self,
+        instrument: str,
+        current_price: float,
+        candles: list[PriceCandle],
+        max_distance_points: float = 100.0,
+        lookback_days: int = 30
+    ) -> PsychologicalLevelsResponse:
+        """
+        Analiza niveles psicológicos a partir de velas ya obtenidas
+        @param instrument - Instrumento
+        @param current_price - Precio actual
+        @param candles - Velas históricas
+        @param max_distance_points - Distancia máxima
+        @param lookback_days - Días de histórico (referencia)
+        @returns Respuesta formateada
+        """
+        # 1. Generar niveles redondos cercanos
+        round_levels = self._generate_round_levels(current_price, max_distance_points)
+        logger.info(f"Generated {len(round_levels)} round levels")
+
+        # 2. Analizar cada nivel
         analyzed_levels: list[PsychologicalLevel] = []
         for level_price in round_levels:
             level_analysis = self._analyze_level(
-                level_price, current_price, historical_candles
+                level_price, current_price, candles
             )
             analyzed_levels.append(level_analysis)
 
-        # 5. Identificar niveles más fuertes y cercanos
+        # 3. Identificar niveles más fuertes y cercanos
         supports = [l for l in analyzed_levels if l.type in [LevelType.SUPPORT, LevelType.BOTH]]
         resistances = [l for l in analyzed_levels if l.type in [LevelType.RESISTANCE, LevelType.BOTH]]
 
@@ -106,7 +132,7 @@ class PsychologicalLevelsService:
             default=None
         )
 
-        # 6. Generar resumen
+        # 4. Generar resumen
         summary = self._generate_summary(
             current_price, nearest_support, nearest_resistance, strongest_support, strongest_resistance
         )

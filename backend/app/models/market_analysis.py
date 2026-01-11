@@ -32,6 +32,22 @@ class PriceCandle(BaseModel):
     volume: Optional[float] = Field(None, description="Volumen (si está disponible)")
 
 
+class VolatilityLevel(str, Enum):
+    """Niveles de volatilidad"""
+    LOW = "baja"
+    NORMAL = "normal"
+    HIGH = "alta"
+    EXTREME = "extrema"
+
+
+class PsychologicalBreak(BaseModel):
+    """Información sobre ruptura de nivel psicológico"""
+    level: float = Field(..., description="Nivel psicológico roto")
+    break_type: str = Field(..., description="Tipo de ruptura: 'alcista' o 'bajista'")
+    break_price: float = Field(..., description="Precio de cierre cuando se rompió")
+    confirmed: bool = Field(..., description="Si la ruptura fue confirmada (precio cerró por encima/debajo)")
+    
+
 class SessionAnalysis(BaseModel):
     """Análisis de una sesión de trading"""
     session: SessionType = Field(..., description="Tipo de sesión")
@@ -48,6 +64,13 @@ class SessionAnalysis(BaseModel):
     broke_previous_high: bool = Field(False, description="Si rompió el máximo del día anterior")
     broke_previous_low: bool = Field(False, description="Si rompió el mínimo del día anterior")
     description: str = Field(..., description="Descripción textual de la sesión")
+    
+    # Nuevos campos para Fase 1
+    volatility: Optional[dict] = Field(None, description="Análisis de volatilidad de la sesión")
+    psychological_breaks: list[PsychologicalBreak] = Field(
+        default_factory=list,
+        description="Niveles psicológicos rotos en la sesión"
+    )
 
 
 class DailyMarketAnalysis(BaseModel):

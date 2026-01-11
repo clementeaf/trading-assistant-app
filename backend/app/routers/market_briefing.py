@@ -70,15 +70,17 @@ def get_market_alignment_service(
 
 def get_technical_analysis_service(
     settings: Settings = Depends(get_settings),
-    db: Optional[Session] = Depends(get_db)
+    db: Optional[Session] = Depends(get_db),
+    psychological_levels_service: PsychologicalLevelsService = Depends(get_psychological_levels_service)
 ) -> TechnicalAnalysisService:
     """
     Dependency para obtener el servicio de análisis técnico avanzado
     @param settings - Configuración de la aplicación
     @param db - Sesión de base de datos
+    @param psychological_levels_service - Servicio de niveles psicológicos
     @returns Instancia del servicio de análisis técnico
     """
-    return TechnicalAnalysisService(settings, db)
+    return TechnicalAnalysisService(settings, db, psychological_levels_service)
 
 
 def get_psychological_levels_service(
