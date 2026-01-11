@@ -203,7 +203,7 @@ async def get_high_impact_news_today(
     "/event-schedule",
     response_model=EventScheduleResponse,
     summary="Obtiene el calendario de eventos económicos de alto impacto del día",
-    description="Muestra una lista de noticias de alto impacto con su hora y si afectan al USD."
+    description="Muestra una lista de noticias de alto impacto con su hora, si afectan al USD, y opcionalmente estimación de impacto en Gold."
 )
 async def get_event_schedule(
     currency: Optional[str] = Query(
@@ -213,11 +213,16 @@ async def get_event_schedule(
         max_length=3,
         pattern="^[A-Z]{3}$"
     ),
+    include_gold_impact: bool = Query(
+        True,
+        description="Incluir estimación de impacto en Gold para cada evento"
+    ),
     service: EconomicCalendarService = Depends(get_economic_calendar_service)
 ) -> EventScheduleResponse:
     """
     Endpoint para obtener el calendario de eventos económicos de alto impacto del día actual.
     @param currency - Moneda para filtrar (opcional, por defecto USD).
+    @param include_gold_impact - Si incluir estimación de impacto en Gold
     @param service - Servicio de calendario económico.
     @returns Respuesta con el calendario de eventos formateado.
     """
@@ -233,8 +238,14 @@ async def get_event_schedule(
                     detail=str(e)
                 )
 
-        logger.info(f"Fetching event schedule with currency: {validated_currency or 'USD'}")
-        result = await service.get_event_schedule_today(currency=validated_currency)
+        logger.info(
+            f"Fetching event schedule with currency: {validated_currency or 'USD'}, "
+            f"include_gold_impact={include_gold_impact}"
+        )
+        result = await service.get_event_schedule_today(
+            currency=validated_currency,
+            include_gold_impact=include_gold_impact
+        )
         logger.info(f"Successfully retrieved {result.total_events} events, {result.usd_events_count} affecting USD")
         return result
     except HTTPException:

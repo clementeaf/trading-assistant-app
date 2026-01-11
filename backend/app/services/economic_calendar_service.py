@@ -169,11 +169,13 @@ class EconomicCalendarService:
 
     async def get_event_schedule_today(
         self,
-        currency: Optional[str] = None
+        currency: Optional[str] = None,
+        include_gold_impact: bool = True
     ) -> EventScheduleResponse:
         """
         Obtiene el calendario de eventos para el día actual, formateado para mostrar horarios
         @param currency - Moneda para filtrar (opcional, por defecto USD)
+        @param include_gold_impact - Si incluir estimación de impacto en Gold
         @returns Respuesta con el calendario de eventos
         """
         # Usar día hábil actual (la Fed solo opera en días hábiles)
@@ -187,7 +189,7 @@ class EconomicCalendarService:
 
         logger.info(
             f"Fetching event schedule for {today} (business day) "
-            f"with currency {target_currency}"
+            f"with currency {target_currency}, include_gold_impact={include_gold_impact}"
         )
 
         # Intentar obtener de base de datos primero
@@ -235,7 +237,9 @@ class EconomicCalendarService:
 
         # Formatear y ordenar eventos
         formatted_events = ScheduleFormatter.format_events_for_schedule(
-            high_impact_events, target_currency
+            high_impact_events,
+            target_currency,
+            include_gold_impact=include_gold_impact
         )
 
         usd_events_count = sum(1 for event in formatted_events if event.affects_usd)
