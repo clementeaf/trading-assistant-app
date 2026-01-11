@@ -29,19 +29,22 @@ class TechnicalAnalysisService:
         self,
         settings: Settings,
         db: Optional[Session] = None,
-        psychological_levels_service: Optional[PsychologicalLevelsService] = None
+        psychological_levels_service: Optional[PsychologicalLevelsService] = None,
+        llm_service: Optional[LLMService] = None
     ):
         """
         Inicializa el servicio de análisis técnico
         @param settings - Configuración de la aplicación
         @param db - Sesión de base de datos (opcional)
         @param psychological_levels_service - Servicio de niveles (opcional)
+        @param llm_service - Servicio LLM para detección de patrones (opcional)
         """
         self.settings = settings
         self.provider = self._create_provider(settings)
         self.db = db
         self.market_data_repo = MarketDataRepository(db)
         self.psychological_levels_service = psychological_levels_service
+        self.llm_service = llm_service
     
     def _create_provider(self, settings: Settings) -> MarketDataProvider:
         """

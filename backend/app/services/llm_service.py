@@ -509,6 +509,281 @@ Use direct, professional language."""
         
         return prompt
     
+    async def detect_complex_patterns(
+        self,
+        price_data: list[dict[str, float]],
+        timeframe: str = "H4",
+        current_price: float = 0.0,
+        language: str = "es"
+    ) -> dict[str, any]:
+        """
+        Detecta patrones técnicos complejos en datos de precio usando LLM
+        
+        Args:
+            price_data: Lista de velas OHLCV recientes (últimas 50-100)
+                       Formato: [{"open": 4500, "high": 4510, "low": 4495, "close": 4505, "timestamp": "2026-01-11 10:00"}, ...]
+            timeframe: Timeframe de análisis (H1, H4, Daily)
+            current_price: Precio actual
+            language: Idioma (es, en)
+        
+        Returns:
+            dict: Datos del patrón detectado en formato JSON
+                  {"pattern_type": "head_and_shoulders", "status": "forming", "bias": "bearish", ...}
+        
+        Raises:
+            ValueError: Si el servicio LLM no está configurado
+            Exception: Si falla la detección
+        """
+        if not self.client:
+            raise ValueError(
+                "LLM service not configured. Please set OPENAI_API_KEY in environment."
+            )
+        
+        # Construir prompt con datos de precio
+        prompt = self._build_pattern_detection_prompt(
+            price_data=price_data,
+            timeframe=timeframe,
+            current_price=current_price,
+            language=language
+        )
+        
+        try:
+            logger.info(f"Detecting patterns in {timeframe} with {len(price_data)} candles")
+            
+            # Llamar a OpenAI
+            response: ChatCompletion = await self.client.chat.completions.create(
+                model=self.settings.openai_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self._get_pattern_detection_system_prompt(language)
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.4,  # Balance entre creatividad y consistencia
+                max_tokens=400,   # Patrones requieren descripción detallada
+                response_format={"type": "json_object"}  # Force JSON output
+            )
+            
+            # Extraer y parsear respuesta
+            content = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens if response.usage else None
+            
+            logger.info(f"Pattern detection result received (tokens: {tokens_used})")
+            
+            # Parsear JSON
+            pattern_data = json.loads(content)
+            
+            logger.info(f"Pattern detected: {pattern_data.get('pattern_type', 'none')}")
+            
+            return pattern_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse pattern detection response as JSON: {str(e)}")
+            # Retornar "no pattern" en caso de error
+            return {
+                "pattern_type": "none",
+                "status": "forming",
+                "bias": "neutral",
+                "confidence": 0.0,
+                "description": "No se pudo detectar ningún patrón",
+                "key_levels": {},
+                "timeframe": timeframe,
+                "implications": "Continuar monitoreando"
+            }
+        except Exception as e:
+            logger.error(f"Error detecting patterns: {str(e)}", exc_info=True)
+            # Retornar "no pattern" en caso de error
+            return {
+                "pattern_type": "none",
+                "status": "forming",
+                "bias": "neutral",
+                "confidence": 0.0,
+                "description": "Error en detección de patrones",
+                "key_levels": {},
+                "timeframe": timeframe,
+                "implications": "Revisar manualmente"
+            }
+    
+    def _get_pattern_detection_system_prompt(self, language: str) -> str:
+        """
+        Obtiene el system prompt para detección de patrones
+        
+        Args:
+            language: Código de idioma (es, en)
+        
+        Returns:
+            str: System prompt
+        """
+        if language == "es":
+            return """Eres un analista técnico experto especializado en detección de patrones de precio.
+
+Tu tarea es analizar datos OHLCV y detectar patrones técnicos complejos.
+
+PATRONES A DETECTAR:
+- Head & Shoulders / Inverse Head & Shoulders
+- Double Top / Double Bottom
+- Triple Top / Triple Bottom
+- Ascending Triangle / Descending Triangle / Symmetrical Triangle
+- Rising Wedge / Falling Wedge
+- Flag / Pennant
+- Cup and Handle
+- Rounding Bottom
+
+IMPORTANTE:
+- Responde SOLO en formato JSON válido
+- Si no detectas un patrón claro, usa "pattern_type": "none"
+- Sé conservador: mejor no detectar que falso positivo
+- Considera contexto completo, no solo últimas velas
+- Incluye niveles clave (neckline, breakout, target, invalidation)
+
+FORMATO DE RESPUESTA (JSON):
+{
+  "pattern_type": "head_and_shoulders",
+  "status": "forming",
+  "bias": "bearish",
+  "confidence": 0.75,
+  "description": "Patrón H&S en formación con hombro izquierdo en 4520, cabeza en 4550, hombro derecho en 4525. Neckline en 4500.",
+  "key_levels": {
+    "neckline": 4500,
+    "breakout": 4495,
+    "target": 4450,
+    "invalidation": 4560
+  },
+  "timeframe": "H4",
+  "implications": "Si rompe neckline (4500), probable caída a 4450. Stop sobre 4560."
+}"""
+        else:  # English
+            return """You are an expert technical analyst specialized in price pattern detection.
+
+Your task is to analyze OHLCV data and detect complex technical patterns.
+
+PATTERNS TO DETECT:
+- Head & Shoulders / Inverse Head & Shoulders
+- Double Top / Double Bottom
+- Triple Top / Triple Bottom
+- Ascending Triangle / Descending Triangle / Symmetrical Triangle
+- Rising Wedge / Falling Wedge
+- Flag / Pennant
+- Cup and Handle
+- Rounding Bottom
+
+IMPORTANT:
+- Respond ONLY in valid JSON format
+- If no clear pattern detected, use "pattern_type": "none"
+- Be conservative: better no detection than false positive
+- Consider full context, not just recent candles
+- Include key levels (neckline, breakout, target, invalidation)
+
+RESPONSE FORMAT (JSON):
+{
+  "pattern_type": "head_and_shoulders",
+  "status": "forming",
+  "bias": "bearish",
+  "confidence": 0.75,
+  "description": "H&S pattern forming with left shoulder at 4520, head at 4550, right shoulder at 4525. Neckline at 4500.",
+  "key_levels": {
+    "neckline": 4500,
+    "breakout": 4495,
+    "target": 4450,
+    "invalidation": 4560
+  },
+  "timeframe": "H4",
+  "implications": "If breaks neckline (4500), likely drop to 4450. Stop above 4560."
+}"""
+    
+    def _build_pattern_detection_prompt(
+        self,
+        price_data: list[dict[str, float]],
+        timeframe: str,
+        current_price: float,
+        language: str
+    ) -> str:
+        """
+        Construye el prompt para detección de patrones
+        
+        Args:
+            price_data: Lista de velas OHLCV
+            timeframe: Timeframe
+            current_price: Precio actual
+            language: Idioma
+        
+        Returns:
+            str: Prompt completo
+        """
+        # Preparar resumen de datos (últimas 20 velas para no saturar prompt)
+        recent_data = price_data[-20:] if len(price_data) > 20 else price_data
+        
+        # Calcular estadísticas básicas
+        highs = [candle["high"] for candle in price_data]
+        lows = [candle["low"] for candle in price_data]
+        highest = max(highs) if highs else 0
+        lowest = min(lows) if lows else 0
+        range_percent = ((highest - lowest) / lowest * 100) if lowest > 0 else 0
+        
+        if language == "es":
+            # Formatear velas para el prompt
+            candles_str = "\n".join([
+                f"  {i+1}. O:{c['open']:.2f} H:{c['high']:.2f} L:{c['low']:.2f} C:{c['close']:.2f}"
+                for i, c in enumerate(recent_data)
+            ])
+            
+            prompt = f"""Analiza estos datos de precio de Gold (XAU/USD) en {timeframe} y detecta patrones técnicos.
+
+DATOS DE PRECIO (últimas {len(recent_data)} velas):
+{candles_str}
+
+ESTADÍSTICAS:
+- Precio actual: ${current_price:.2f}
+- Máximo del período: ${highest:.2f}
+- Mínimo del período: ${lowest:.2f}
+- Rango: {range_percent:.2f}%
+- Timeframe: {timeframe}
+
+INSTRUCCIONES:
+1. Analiza la estructura de precio completa
+2. Identifica si hay algún patrón técnico formándose o confirmado
+3. Determina niveles clave (soporte, resistencia, neckline, etc)
+4. Evalúa el sesgo direccional (bullish/bearish/neutral)
+5. Asigna nivel de confianza (0.0-1.0)
+6. Proporciona implicaciones operativas
+
+Responde en formato JSON según el esquema especificado."""
+        
+        else:  # English
+            # Format candles for prompt
+            candles_str = "\n".join([
+                f"  {i+1}. O:{c['open']:.2f} H:{c['high']:.2f} L:{c['low']:.2f} C:{c['close']:.2f}"
+                for i, c in enumerate(recent_data)
+            ])
+            
+            prompt = f"""Analyze this Gold (XAU/USD) price data in {timeframe} and detect technical patterns.
+
+PRICE DATA (last {len(recent_data)} candles):
+{candles_str}
+
+STATISTICS:
+- Current price: ${current_price:.2f}
+- Period high: ${highest:.2f}
+- Period low: ${lowest:.2f}
+- Range: {range_percent:.2f}%
+- Timeframe: {timeframe}
+
+INSTRUCTIONS:
+1. Analyze complete price structure
+2. Identify any technical pattern forming or confirmed
+3. Determine key levels (support, resistance, neckline, etc)
+4. Evaluate directional bias (bullish/bearish/neutral)
+5. Assign confidence level (0.0-1.0)
+6. Provide trading implications
+
+Respond in JSON format according to specified schema."""
+        
+        return prompt
+    
     def _get_system_prompt(self, language: str) -> str:
         """
         Obtiene el system prompt según el idioma
