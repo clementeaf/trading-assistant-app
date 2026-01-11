@@ -15,8 +15,25 @@ class TradeDirection(str, Enum):
     WAIT = "esperar"
 
 
+class RiskRewardDetails(BaseModel):
+    """Detalles del ratio riesgo/recompensa"""
+    ratio: str = Field(..., description="Ratio en formato '1:X.XX'")
+    risk_points: float = Field(..., description="Riesgo en puntos")
+    reward_points: float = Field(..., description="Recompensa en puntos")
+    risk_percentage: float = Field(..., description="Riesgo en porcentaje del precio de entrada")
+    reward_percentage: float = Field(..., description="Recompensa en porcentaje del precio de entrada")
+    explanation: str = Field(..., description="Explicación detallada del R:R")
+    meets_minimum: bool = Field(..., description="Si cumple ratio mínimo recomendado (1:1.5)")
+
+
 class TradeRecommendation(BaseModel):
     """Recomendación de trading con niveles de precio"""
+    # ⚠️ DISCLAIMER PROMINENTE (debe mostrarse primero)
+    disclaimer: str = Field(
+        ...,
+        description="⚠️ ADVERTENCIA LEGAL - NO ES CONSEJO FINANCIERO - Debe mostrarse de forma prominente"
+    )
+    
     # Información temporal
     analysis_date: str = Field(..., description="Fecha del análisis (último día hábil analizado)")
     analysis_datetime: str = Field(..., description="Fecha y hora cuando se generó la recomendación (ISO format)")
@@ -71,14 +88,12 @@ class TradeRecommendation(BaseModel):
     # Advertencias
     warnings: list[str] = Field(default_factory=list, description="Advertencias importantes (noticias próximas, etc)")
     
-    # Disclaimer legal
-    disclaimer: str = Field(
-        default="""IMPORTANTE: Esta recomendación es solo informativa y no constituye asesoramiento financiero, de inversión o trading. El trading de instrumentos financieros conlleva un alto nivel de riesgo y puede no ser adecuado para todos los inversores. Usted es el único responsable de sus decisiones de trading. Consulte con un asesor financiero profesional antes de operar. Los resultados pasados no garantizan resultados futuros.""",
-        description="Disclaimer legal - No es asesoramiento financiero"
-    )
-    
-    # Ratio riesgo/recompensa
+    # Ratio riesgo/recompensa (SIEMPRE visible y detallado)
     risk_reward_ratio: str = Field(..., description="Ratio riesgo/recompensa en formato '1:X.XX'")
+    risk_reward_details: Optional[RiskRewardDetails] = Field(
+        None, 
+        description="Detalles completos del ratio riesgo/recompensa con explicación"
+    )
     
     # Desglose de confianza
     confidence_breakdown: dict[str, float] = Field(

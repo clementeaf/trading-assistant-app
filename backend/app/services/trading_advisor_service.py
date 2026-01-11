@@ -14,7 +14,11 @@ from app.config.settings import Settings
 from app.models.market_alignment import MarketAlignmentAnalysis
 from app.models.market_analysis import DailyMarketAnalysis, PriceCandle
 from app.models.trading_mode import TradingMode, TradingModeRecommendation
-from app.models.trading_recommendation import TradeDirection, TradeRecommendation
+from app.models.trading_recommendation import (
+    TradeDirection, 
+    TradeRecommendation, 
+    RiskRewardDetails
+)
 from app.services.economic_calendar_service import EconomicCalendarService
 from app.services.market_alignment_service import MarketAlignmentService
 from app.services.market_analysis_service import MarketAnalysisService
@@ -23,8 +27,29 @@ from app.services.technical_analysis_service import TechnicalAnalysisService
 
 logger = logging.getLogger(__name__)
 
-# Disclaimer legal estándar para recomendaciones de trading
-DISCLAIMER_TEXT = """IMPORTANTE: Esta recomendación es solo informativa y no constituye asesoramiento financiero, de inversión o trading. El trading de instrumentos financieros conlleva un alto nivel de riesgo y puede no ser adecuado para todos los inversores. Usted es el único responsable de sus decisiones de trading. Consulte con un asesor financiero profesional antes de operar. Los resultados pasados no garantizan resultados futuros."""
+# Disclaimer legal reforzado y prominente para recomendaciones de trading
+DISCLAIMER_TEXT = """⚠️ ADVERTENCIA LEGAL IMPORTANTE ⚠️
+
+ESTA NO ES ASESORÍA FINANCIERA - SOLO ANÁLISIS PROBABILÍSTICO
+
+Esta recomendación es únicamente informativa y educativa. NO constituye asesoramiento financiero, de inversión o trading profesional. 
+
+RIESGOS:
+• El trading de instrumentos financieros conlleva un ALTO nivel de riesgo
+• Puede perder TODO su capital invertido
+• Los resultados pasados NO garantizan resultados futuros
+• Las probabilidades NO son certezas
+
+RESPONSABILIDAD:
+• Usted es el ÚNICO responsable de sus decisiones de trading
+• Debe consultar con un asesor financiero profesional antes de operar
+• Solo opere con capital que pueda permitirse perder
+
+Esta información se proporciona "tal cual" sin garantías de ningún tipo.
+"""
+
+# Ratio mínimo recomendado para operaciones
+MINIMUM_RISK_REWARD_RATIO = 1.5
 
 
 class TradingAdvisorService:
@@ -192,11 +217,12 @@ class TradingAdvisorService:
         
         # Calcular campos adicionales
         risk_reward_ratio = "N/A"
+        risk_reward_details = None
         invalid_level = None
         
         if entry_price and stop_loss and take_profit_1:
-            risk_reward_ratio = self._calculate_risk_reward_ratio(
-                entry_price, stop_loss, take_profit_1
+            risk_reward_ratio, risk_reward_details = self._calculate_risk_reward_with_details(
+                direction, entry_price, stop_loss, take_profit_1
             )
         
         if direction != TradeDirection.WAIT and stop_loss:
@@ -237,6 +263,7 @@ class TradingAdvisorService:
         )
         
         return TradeRecommendation(
+            disclaimer=DISCLAIMER_TEXT.strip(),
             analysis_date=analysis_date,
             analysis_datetime=analysis_datetime,
             current_datetime=current_datetime,
@@ -269,8 +296,8 @@ class TradingAdvisorService:
             summary=summary,
             detailed_explanation=detailed_explanation,
             warnings=warnings,
-            disclaimer=DISCLAIMER_TEXT.strip(),
             risk_reward_ratio=risk_reward_ratio,
+            risk_reward_details=risk_reward_details,
             confidence_breakdown=confidence_breakdown,
             invalidation_level=invalid_level
         )
@@ -675,6 +702,65 @@ class TradingAdvisorService:
         
         return warnings
 
+    def _calculate_risk_reward_with_details(
+        self,
+        direction: TradeDirection,
+        entry: float,
+        stop_loss: float,
+        take_profit: float
+    ) -> tuple[str, RiskRewardDetails]:
+        """
+        Calcula el ratio riesgo/recompensa con detalles completos
+        @param direction - Dirección del trade
+        @param entry - Precio de entrada
+        @param stop_loss - Stop loss
+        @param take_profit - Take profit
+        @returns Tupla (ratio_string, detalles completos)
+        """
+        # Calcular puntos de riesgo y recompensa
+        risk_points = abs(entry - stop_loss)
+        reward_points = abs(take_profit - entry)
+        
+        # Calcular porcentajes
+        risk_percentage = (risk_points / entry) * 100
+        reward_percentage = (reward_points / entry) * 100
+        
+        # Calcular ratio
+        ratio_value = reward_points / risk_points if risk_points > 0 else 0.0
+        ratio_string = f"1:{ratio_value:.2f}"
+        
+        # Verificar si cumple ratio mínimo
+        meets_minimum = ratio_value >= MINIMUM_RISK_REWARD_RATIO
+        
+        # Generar explicación detallada
+        direction_text = "COMPRA" if direction == TradeDirection.BUY else "VENTA"
+        explanation = (
+            f"Para esta operación de {direction_text}:\n"
+            f"• Riesgo: {risk_points:.2f} puntos ({risk_percentage:.2f}% del precio de entrada)\n"
+            f"• Recompensa: {reward_points:.2f} puntos ({reward_percentage:.2f}% del precio de entrada)\n"
+            f"• Ratio: {ratio_string}\n"
+        )
+        
+        if meets_minimum:
+            explanation += f"• ✓ Cumple el ratio mínimo recomendado de 1:{MINIMUM_RISK_REWARD_RATIO:.1f}"
+        else:
+            explanation += (
+                f"• ⚠️ NO cumple el ratio mínimo recomendado de 1:{MINIMUM_RISK_REWARD_RATIO:.1f}\n"
+                f"• Considerar ajustar niveles o esperar mejor oportunidad"
+            )
+        
+        details = RiskRewardDetails(
+            ratio=ratio_string,
+            risk_points=round(risk_points, 2),
+            reward_points=round(reward_points, 2),
+            risk_percentage=round(risk_percentage, 2),
+            reward_percentage=round(reward_percentage, 2),
+            explanation=explanation,
+            meets_minimum=meets_minimum
+        )
+        
+        return ratio_string, details
+
     def _calculate_risk_reward_ratio(
         self,
         entry: float,
@@ -682,7 +768,7 @@ class TradingAdvisorService:
         take_profit: float
     ) -> str:
         """
-        Calcula el ratio riesgo/recompensa
+        Calcula el ratio riesgo/recompensa (método legacy - mantener por compatibilidad)
         @param entry - Precio de entrada
         @param stop_loss - Stop loss
         @param take_profit - Take profit
