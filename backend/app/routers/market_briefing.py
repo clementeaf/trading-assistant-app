@@ -292,7 +292,7 @@ async def get_yesterday_analysis(
     "/dxy-bond-alignment",
     response_model=MarketAlignmentAnalysis,
     summary="Analiza la alineación entre el DXY y los rendimientos de bonos",
-    description="Determina si el DXY y un bono específico (ej: US10Y) están alineados o en conflicto, y el sesgo de mercado."
+    description="Determina si el DXY y un bono específico (ej: US10Y) están alineados o en conflicto, el sesgo de mercado, y opcionalmente incluye correlación Gold-DXY con proyección de impacto."
 )
 async def get_dxy_bond_alignment(
     bond: str = Query(
@@ -302,19 +302,51 @@ async def get_dxy_bond_alignment(
         max_length=5,
         pattern="^US(02|10|30)Y$"
     ),
+    include_gold_correlation: bool = Query(
+        True,
+        description="Incluir análisis de correlación Gold-DXY"
+    ),
+    gold_symbol: str = Query(
+        "XAUUSD",
+        description="Símbolo de Gold a usar para correlación"
+    ),
+    correlation_days: int = Query(
+        30,
+        description="Días históricos para calcular correlación",
+        ge=7,
+        le=90
+    ),
     service: MarketAlignmentService = Depends(get_market_alignment_service)
 ) -> MarketAlignmentAnalysis:
     """
     Endpoint para obtener el análisis de alineación entre DXY y bonos.
     @param bond - Símbolo del bono.
+    @param include_gold_correlation - Si incluir correlación Gold-DXY
+    @param gold_symbol - Símbolo de Gold
+    @param correlation_days - Días para calcular correlación
     @param service - Servicio de alineación de mercado.
-    @returns Análisis de alineación entre DXY y bonos.
+    @returns Análisis de alineación entre DXY y bonos con correlación Gold-DXY.
     """
     try:
         validated_bond = InstrumentValidator.validate_bond_symbol(bond)
-        logger.info(f"Fetching DXY-Bond alignment analysis for {validated_bond}")
-        result = await service.analyze_dxy_bond_alignment(bond_symbol=validated_bond)
+        logger.info(
+            f"Fetching DXY-Bond alignment analysis for {validated_bond} "
+            f"(gold_correlation={include_gold_correlation})"
+        )
+        result = await service.analyze_dxy_bond_alignment(
+            bond_symbol=validated_bond,
+            include_gold_correlation=include_gold_correlation,
+            gold_symbol=gold_symbol,
+            correlation_days=correlation_days
+        )
         logger.info(f"Alignment: {result.alignment}, Bias: {result.market_bias}")
+        
+        if result.gold_dxy_correlation:
+            logger.info(
+                f"Gold-DXY correlation: {result.gold_dxy_correlation.coefficient:.2f} "
+                f"({result.gold_dxy_correlation.strength.value})"
+            )
+        
         return result
     except ValueError as e:
         logger.warning(f"Invalid bond symbol parameter: {bond} - {str(e)}")
