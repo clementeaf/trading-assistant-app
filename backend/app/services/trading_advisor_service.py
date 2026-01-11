@@ -625,3 +625,22 @@ class TradingAdvisorService:
         
         return warnings
 
+    def _calculate_risk_reward_ratio(
+        self,
+        entry: float,
+        stop_loss: float,
+        take_profit: float
+    ) -> str:
+        """
+        Calcula el ratio riesgo/recompensa
+        @param entry - Precio de entrada
+        @param stop_loss - Stop loss
+        @param take_profit - Take profit
+        @returns Ratio formateado como '1:X.XX'
+        """
+        risk = abs(entry - stop_loss)
+        reward = abs(take_profit - entry)
+        
+        ratio = reward / risk if risk > 0 else 0.0
+        return f"1:{ratio:.2f}"
+
