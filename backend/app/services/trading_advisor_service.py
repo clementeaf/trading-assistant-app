@@ -23,6 +23,9 @@ from app.services.technical_analysis_service import TechnicalAnalysisService
 
 logger = logging.getLogger(__name__)
 
+# Disclaimer legal estándar para recomendaciones de trading
+DISCLAIMER_TEXT = """IMPORTANTE: Esta recomendación es solo informativa y no constituye asesoramiento financiero, de inversión o trading. El trading de instrumentos financieros conlleva un alto nivel de riesgo y puede no ser adecuado para todos los inversores. Usted es el único responsable de sus decisiones de trading. Consulte con un asesor financiero profesional antes de operar. Los resultados pasados no garantizan resultados futuros."""
+
 
 class TradingAdvisorService:
     """Servicio de asesoramiento de trading para XAUUSD"""
