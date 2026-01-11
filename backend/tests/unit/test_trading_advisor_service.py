@@ -103,3 +103,35 @@ class TestTradingAdvisorService:
         assert result["market_context"] == 0.6
         assert result["news_impact"] == 0.5
         assert result["overall"] == 0.63
+
+    def test_determine_invalidation_level_buy(self, mock_dependencies):
+        """Test nivel de invalidación para compra"""
+        service = TradingAdvisorService(**mock_dependencies)
+        
+        # Stop loss: 4480
+        # Invalidation: 4480 * 0.998 = 4471.04
+        from app.models.trading_recommendation import TradeDirection
+        
+        result = service._determine_invalidation_level(
+            direction=TradeDirection.BUY,
+            stop_loss=4480.0
+        )
+        
+        assert result == 4471.04
+        assert result < 4480.0
+
+    def test_determine_invalidation_level_sell(self, mock_dependencies):
+        """Test nivel de invalidación para venta"""
+        service = TradingAdvisorService(**mock_dependencies)
+        
+        # Stop loss: 4520
+        # Invalidation: 4520 * 1.002 = 4529.04
+        from app.models.trading_recommendation import TradeDirection
+        
+        result = service._determine_invalidation_level(
+            direction=TradeDirection.SELL,
+            stop_loss=4520.0
+        )
+        
+        assert result == 4529.04
+        assert result > 4520.0

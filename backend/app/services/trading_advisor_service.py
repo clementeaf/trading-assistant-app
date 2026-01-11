@@ -672,3 +672,23 @@ class TradingAdvisorService:
             "overall": round(overall, 2)
         }
 
+    def _determine_invalidation_level(
+        self,
+        direction: TradeDirection,
+        stop_loss: float
+    ) -> float:
+        """
+        Determina el nivel de invalidación de la tesis
+        @param direction - Dirección de trading
+        @param stop_loss - Nivel de stop loss recomendado
+        @returns Precio de invalidación
+        """
+        if direction == TradeDirection.BUY:
+            # Para compras, invalidación ligeramente por debajo del stop
+            return round(stop_loss * 0.998, 2)
+        elif direction == TradeDirection.SELL:
+            # Para ventas, invalidación ligeramente por encima del stop
+            return round(stop_loss * 1.002, 2)
+        else:
+            return stop_loss
+
