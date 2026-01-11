@@ -6,6 +6,7 @@ from typing import Optional
 
 from app.models.economic_calendar import EconomicEvent, EventScheduleItem, ImpactLevel
 from app.utils.timezone_converter import TimezoneConverter
+from app.utils.gold_impact_calculator import GoldImpactCalculator
 
 
 class ScheduleFormatter:
@@ -25,13 +26,17 @@ class ScheduleFormatter:
         cls,
         event: EconomicEvent,
         include_timezones: bool = True,
-        timezones: Optional[list[str]] = None
+        timezones: Optional[list[str]] = None,
+        include_gold_impact: bool = True,
+        current_gold_price: Optional[float] = None
     ) -> EventScheduleItem:
         """
         Formatea un evento en formato de calendario
         @param event - Evento económico a formatear
         @param include_timezones - Si incluir conversión de zonas horarias
         @param timezones - Zonas a incluir (default: UTC, ET, PT)
+        @param include_gold_impact - Si incluir estimación de impacto en Gold
+        @param current_gold_price - Precio actual de Gold (opcional)
         @returns EventScheduleItem formateado
         """
         time_str = event.date.strftime("%H:%M")
@@ -57,6 +62,20 @@ class ScheduleFormatter:
                 # Si falla conversión, continuar sin timezones
                 pass
         
+        # Calcular impacto en Gold si se solicita
+        gold_impact = None
+        if include_gold_impact:
+            try:
+                gold_impact = GoldImpactCalculator.calculate_impact(
+                    event_name=event.description,
+                    event_description=None,
+                    importance=event.importance.value,
+                    current_gold_price=current_gold_price
+                )
+            except Exception:
+                # Si falla cálculo, continuar sin impacto
+                pass
+        
         return EventScheduleItem(
             time=time_str,
             description=event.description,
@@ -65,25 +84,37 @@ class ScheduleFormatter:
             affects_usd=affects_usd,
             full_description=full_description,
             timezones=timezones_dict,
-            formatted_time=formatted_time
+            formatted_time=formatted_time,
+            gold_impact=gold_impact
         )
+    
     
     @classmethod
     def format_events(
         cls,
         events: list[EconomicEvent],
         include_timezones: bool = True,
-        timezones: Optional[list[str]] = None
+        timezones: Optional[list[str]] = None,
+        include_gold_impact: bool = True,
+        current_gold_price: Optional[float] = None
     ) -> list[EventScheduleItem]:
         """
         Formatea una lista de eventos
         @param events - Lista de eventos económicos
         @param include_timezones - Si incluir conversión de zonas horarias
         @param timezones - Zonas a incluir (default: UTC, ET, PT)
+        @param include_gold_impact - Si incluir estimación de impacto en Gold
+        @param current_gold_price - Precio actual de Gold (opcional)
         @returns Lista de EventScheduleItem formateados
         """
         return [
-            cls.format_event(event, include_timezones, timezones)
+            cls.format_event(
+                event,
+                include_timezones,
+                timezones,
+                include_gold_impact,
+                current_gold_price
+            )
             for event in events
         ]
     
@@ -93,7 +124,9 @@ class ScheduleFormatter:
         events: list[EconomicEvent],
         currency: str = "USD",
         include_timezones: bool = True,
-        timezones: Optional[list[str]] = None
+        timezones: Optional[list[str]] = None,
+        include_gold_impact: bool = True,
+        current_gold_price: Optional[float] = None
     ) -> list[EventScheduleItem]:
         """
         Formatea eventos para el calendario de eventos
@@ -101,9 +134,17 @@ class ScheduleFormatter:
         @param currency - Moneda para determinar si afecta USD
         @param include_timezones - Si incluir conversión de zonas horarias
         @param timezones - Zonas a incluir (default: UTC, ET, PT)
+        @param include_gold_impact - Si incluir estimación de impacto en Gold
+        @param current_gold_price - Precio actual de Gold (opcional)
         @returns Lista de EventScheduleItem formateados y ordenados
         """
-        formatted = cls.format_events(events, include_timezones, timezones)
+        formatted = cls.format_events(
+            events,
+            include_timezones,
+            timezones,
+            include_gold_impact,
+            current_gold_price
+        )
         # Ordenar por hora
         formatted.sort(key=lambda x: x.time)
         return formatted

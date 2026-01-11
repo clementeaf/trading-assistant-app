@@ -7,6 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.models.gold_impact import GoldImpactEstimate
+
 
 class ImpactLevel(str, Enum):
     """Niveles de impacto de eventos económicos"""
@@ -53,6 +55,12 @@ class EventScheduleItem(BaseModel):
     formatted_time: Optional[str] = Field(
         None,
         description="Hora formateada para display: '10:30 UTC (05:30 ET, 02:30 PT)'"
+    )
+    
+    # Impacto estimado en Gold
+    gold_impact: Optional[GoldImpactEstimate] = Field(
+        None,
+        description="Estimación de impacto del evento en Gold (probabilidad, dirección, magnitud)"
     )
 
 
