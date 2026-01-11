@@ -22,6 +22,7 @@ from app.repositories.economic_events_repository import EconomicEventsRepository
 from app.utils.schedule_formatter import ScheduleFormatter
 from app.utils.xauusd_filter import XAUUSDFilter
 from app.utils.business_days import BusinessDays
+from app.utils.geopolitical_analyzer import GeopoliticalAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -158,13 +159,25 @@ class EconomicCalendarService:
 
         has_news = len(xauusd_events) > 0
         summary = self._generate_xauusd_summary(xauusd_events)
+        
+        # Analizar riesgo geopolítico
+        geopolitical_risk = None
+        try:
+            geopolitical_risk = GeopoliticalAnalyzer.analyze_risk(xauusd_events)
+            logger.info(
+                f"Geopolitical risk: {geopolitical_risk.level.value} "
+                f"(score: {geopolitical_risk.score:.2f})"
+            )
+        except Exception as e:
+            logger.warning(f"Could not analyze geopolitical risk: {str(e)}")
 
         return HighImpactNewsResponse(
             has_high_impact_news=has_news,
             count=len(xauusd_events),
             events=xauusd_events,
             summary=summary,
-            instrument="XAUUSD"
+            instrument="XAUUSD",
+            geopolitical_risk=geopolitical_risk
         )
 
     async def get_event_schedule_today(

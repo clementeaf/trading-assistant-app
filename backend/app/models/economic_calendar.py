@@ -8,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.models.gold_impact import GoldImpactEstimate
+from app.models.geopolitical_risk import GeopoliticalRisk
 
 
 class ImpactLevel(str, Enum):
@@ -36,6 +37,12 @@ class HighImpactNewsResponse(BaseModel):
     events: list[EconomicEvent] = Field(..., description="Lista de eventos de alto impacto relevantes para XAUUSD")
     summary: str = Field(..., description="Resumen textual de las noticias relevantes para XAUUSD")
     instrument: str = Field(default="XAUUSD", description="Instrumento financiero al que aplican las noticias")
+    
+    # Riesgo geopolítico
+    geopolitical_risk: Optional[GeopoliticalRisk] = Field(
+        None,
+        description="Análisis de riesgo geopolítico basado en eventos"
+    )
 
 
 class EventScheduleItem(BaseModel):
