@@ -16,6 +16,7 @@ from app.providers.market_data.fred_provider import FredProvider
 from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.utils.alignment_analyzer import AlignmentAnalyzer
 from app.utils.business_days import BusinessDays
+from app.utils.correlation_calculator import CorrelationCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +71,17 @@ class MarketAlignmentService:
     
     async def analyze_dxy_bond_alignment(
         self,
-        bond_symbol: str = "US10Y"
+        bond_symbol: str = "US10Y",
+        include_gold_correlation: bool = True,
+        gold_symbol: str = "XAUUSD",
+        correlation_days: int = 30
     ) -> MarketAlignmentAnalysis:
         """
         Analiza la alineación entre DXY y un bono
         @param bond_symbol - Símbolo del bono (US10Y, US02Y, etc.)
+        @param include_gold_correlation - Si incluir análisis de correlación Gold-DXY
+        @param gold_symbol - Símbolo de Gold a usar
+        @param correlation_days - Días históricos para calcular correlación
         @returns Análisis de alineación
         """
         # Usar días hábiles (la Fed solo opera en días hábiles)
@@ -174,6 +181,24 @@ class MarketAlignmentService:
             bond_symbol=bond_symbol
         )
         
+        # Agregar correlación Gold-DXY si se solicita
+        if include_gold_correlation:
+            try:
+                correlation_result, projection = await self._calculate_gold_dxy_correlation(
+                    gold_symbol=gold_symbol,
+                    correlation_days=correlation_days,
+                    dxy_current=dxy_current
+                )
+                analysis.gold_dxy_correlation = correlation_result
+                analysis.gold_impact_projection = projection
+                
+                logger.info(
+                    f"Gold-DXY correlation: {correlation_result.coefficient:.2f} "
+                    f"({correlation_result.strength.value})"
+                )
+            except Exception as e:
+                logger.warning(f"Could not calculate Gold-DXY correlation: {str(e)}")
+        
         logger.info(
             f"Alignment analysis: {analysis.alignment.value}, "
             f"bias: {analysis.market_bias.value}"
@@ -198,4 +223,62 @@ class MarketAlignmentService:
             "This may not work for all providers. Consider configuring FRED_API_KEY."
         )
         return self.provider
+    
+    async def _calculate_gold_dxy_correlation(
+        self,
+        gold_symbol: str,
+        correlation_days: int,
+        dxy_current: float
+    ) -> tuple:
+        """
+        Calcula correlación entre Gold y DXY
+        @param gold_symbol - Símbolo de Gold
+        @param correlation_days - Días de historial
+        @param dxy_current - Precio actual de DXY
+        @returns Tupla (CorrelationResult, ImpactProjection)
+        """
+        range_start = datetime.now() - timedelta(days=correlation_days + 10)
+        range_end = datetime.now()
+        
+        # Obtener datos históricos
+        gold_candles = await self.provider.fetch_historical_candles(
+            gold_symbol, range_start, range_end, "1d"
+        )
+        
+        dxy_provider = self._get_dxy_bond_provider()
+        dxy_candles = await dxy_provider.fetch_historical_candles(
+            "DXY", range_start, range_end, "1d"
+        )
+        
+        if not gold_candles or not dxy_candles:
+            raise ValueError("Insufficient historical data for correlation")
+        
+        if len(gold_candles) < correlation_days or len(dxy_candles) < correlation_days:
+            raise ValueError(
+                f"Need at least {correlation_days} days of data. "
+                f"Got gold={len(gold_candles)}, dxy={len(dxy_candles)}"
+            )
+        
+        # Tomar últimos N días
+        gold_prices = [c.close for c in gold_candles[-correlation_days:]]
+        dxy_prices = [c.close for c in dxy_candles[-correlation_days:]]
+        
+        # Calcular correlación
+        correlation_result = CorrelationCalculator.calculate_correlation(
+            gold_prices, dxy_prices
+        )
+        
+        # Proyectar impacto (asumir movimiento DXY de 1% para ejemplo)
+        dxy_change_percent = 1.0
+        current_gold_price = gold_candles[-1].close
+        
+        projection = CorrelationCalculator.project_gold_impact(
+            correlation_coefficient=correlation_result.coefficient,
+            dxy_change_percent=dxy_change_percent,
+            current_gold_price=current_gold_price,
+            correlation_strength=correlation_result.strength,
+            is_significant=correlation_result.is_significant
+        )
+        
+        return correlation_result, projection
 

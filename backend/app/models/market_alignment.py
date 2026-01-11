@@ -6,6 +6,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.utils.correlation_calculator import CorrelationResult, ImpactProjection
+
 
 class AlignmentStatus(str, Enum):
     """Estado de alineación entre instrumentos"""
@@ -36,4 +38,14 @@ class MarketAlignmentAnalysis(BaseModel):
     alignment: AlignmentStatus = Field(..., description="Estado de alineación (alineados/conflicto)")
     market_bias: MarketBias = Field(..., description="Sesgo del mercado (risk-off/risk-on/mixto)")
     summary: str = Field(..., description="Resumen textual del análisis")
+    
+    # Correlación Gold-DXY
+    gold_dxy_correlation: Optional[CorrelationResult] = Field(
+        None, 
+        description="Correlación histórica entre Gold y DXY"
+    )
+    gold_impact_projection: Optional[ImpactProjection] = Field(
+        None,
+        description="Proyección de impacto en Gold basado en movimiento DXY"
+    )
 
