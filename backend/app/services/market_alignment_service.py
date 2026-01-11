@@ -268,6 +268,17 @@ class MarketAlignmentService:
             gold_prices, dxy_prices
         )
         
+        # Calcular volatilidad histórica de Gold (desviación estándar de retornos)
+        gold_closes = [c.close for c in gold_candles]
+        gold_returns = []
+        for i in range(1, len(gold_closes)):
+            daily_return = ((gold_closes[i] - gold_closes[i-1]) / gold_closes[i-1]) * 100
+            gold_returns.append(daily_return)
+        
+        # Volatilidad = desviación estándar de retornos diarios
+        import statistics
+        historical_volatility = statistics.stdev(gold_returns) if len(gold_returns) > 1 else 0.5
+        
         # Proyectar impacto (asumir movimiento DXY de 1% para ejemplo)
         dxy_change_percent = 1.0
         current_gold_price = gold_candles[-1].close
@@ -277,7 +288,8 @@ class MarketAlignmentService:
             dxy_change_percent=dxy_change_percent,
             current_gold_price=current_gold_price,
             correlation_strength=correlation_result.strength,
-            is_significant=correlation_result.is_significant
+            is_significant=correlation_result.is_significant,
+            historical_volatility=historical_volatility
         )
         
         return correlation_result, projection

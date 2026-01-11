@@ -38,6 +38,11 @@ class ImpactProjection(BaseModel):
     expected_gold_change_points: float
     confidence: float
     reasoning: str
+    
+    # Rango de magnitud estimada
+    magnitude_range_min: Optional[float] = None
+    magnitude_range_max: Optional[float] = None
+    magnitude_explanation: Optional[str] = None
 
 
 class CorrelationCalculator:
@@ -154,7 +159,8 @@ class CorrelationCalculator:
         dxy_change_percent: float,
         current_gold_price: float,
         correlation_strength: CorrelationStrength,
-        is_significant: bool
+        is_significant: bool,
+        historical_volatility: Optional[float] = None
     ) -> ImpactProjection:
         """
         Proyecta impacto en Gold basado en cambio esperado en DXY
@@ -163,7 +169,8 @@ class CorrelationCalculator:
         @param current_gold_price - Precio actual de Gold
         @param correlation_strength - Fuerza de la correlación
         @param is_significant - Si la correlación es significativa
-        @returns Proyección de impacto en Gold
+        @param historical_volatility - Volatilidad histórica de Gold (opcional)
+        @returns Proyección de impacto en Gold con rango de magnitud
         """
         # Proyectar cambio en Gold (inverso por correlación típicamente negativa)
         expected_gold_change_percent = correlation_coefficient * dxy_change_percent
@@ -176,6 +183,14 @@ class CorrelationCalculator:
         # Calcular confianza basada en fuerza y significancia
         confidence = cls._calculate_projection_confidence(
             correlation_strength, is_significant
+        )
+        
+        # Calcular rango de magnitud basado en volatilidad
+        magnitude_range_min, magnitude_range_max, magnitude_explanation = cls._calculate_magnitude_range(
+            expected_gold_change_percent,
+            expected_gold_change_points,
+            correlation_strength,
+            historical_volatility or 0.5  # Default 0.5% si no se proporciona
         )
         
         # Generar razonamiento
@@ -191,7 +206,10 @@ class CorrelationCalculator:
             expected_gold_change_percent=expected_gold_change_percent,
             expected_gold_change_points=expected_gold_change_points,
             confidence=confidence,
-            reasoning=reasoning
+            reasoning=reasoning,
+            magnitude_range_min=magnitude_range_min,
+            magnitude_range_max=magnitude_range_max,
+            magnitude_explanation=magnitude_explanation
         )
     
     @classmethod
@@ -221,6 +239,74 @@ class CorrelationCalculator:
             confidence *= 0.7
         
         return round(confidence, 2)
+    
+    @classmethod
+    def _calculate_magnitude_range(
+        cls,
+        expected_change_percent: float,
+        expected_change_points: float,
+        correlation_strength: CorrelationStrength,
+        historical_volatility: float
+    ) -> tuple[float, float, str]:
+        """
+        Calcula el rango de magnitud estimada basado en volatilidad histórica
+        @param expected_change_percent - Cambio esperado en %
+        @param expected_change_points - Cambio esperado en puntos
+        @param correlation_strength - Fuerza de la correlación
+        @param historical_volatility - Volatilidad histórica de Gold en %
+        @returns Tupla (mínimo %, máximo %, explicación)
+        """
+        # Factor de amplitud del rango basado en fuerza de correlación
+        # Correlación más débil = rango más amplio (mayor incertidumbre)
+        range_multipliers = {
+            CorrelationStrength.VERY_STRONG: 0.15,  # ±15%
+            CorrelationStrength.STRONG: 0.25,       # ±25%
+            CorrelationStrength.MODERATE: 0.40,     # ±40%
+            CorrelationStrength.WEAK: 0.60,         # ±60%
+            CorrelationStrength.VERY_WEAK: 0.80,    # ±80%
+        }
+        
+        multiplier = range_multipliers.get(correlation_strength, 0.50)
+        
+        # Ajustar por volatilidad histórica
+        # Volatilidad alta = rango más amplio
+        volatility_adjustment = historical_volatility / 0.5  # Normalizado a 0.5% base
+        adjusted_multiplier = multiplier * volatility_adjustment
+        
+        # Calcular rango
+        range_spread_percent = abs(expected_change_percent) * adjusted_multiplier
+        
+        if expected_change_percent >= 0:
+            # Movimiento positivo (alcista en Gold)
+            magnitude_min = expected_change_percent - range_spread_percent
+            magnitude_max = expected_change_percent + range_spread_percent
+        else:
+            # Movimiento negativo (bajista en Gold)
+            magnitude_min = expected_change_percent - range_spread_percent
+            magnitude_max = expected_change_percent + range_spread_percent
+        
+        # Generar explicación
+        strength_text = {
+            CorrelationStrength.VERY_STRONG: "muy fuerte",
+            CorrelationStrength.STRONG: "fuerte",
+            CorrelationStrength.MODERATE: "moderada",
+            CorrelationStrength.WEAK: "débil",
+            CorrelationStrength.VERY_WEAK: "muy débil",
+        }
+        
+        direction_text = "alcista" if expected_change_percent > 0 else "bajista"
+        
+        explanation = (
+            f"Rango estimado basado en correlación {strength_text.get(correlation_strength, 'desconocida')} "
+            f"y volatilidad histórica {historical_volatility:.2f}%. "
+            f"Movimiento {direction_text} esperado entre {magnitude_min:.2f}% y {magnitude_max:.2f}%."
+        )
+        
+        return (
+            round(magnitude_min, 2),
+            round(magnitude_max, 2),
+            explanation
+        )
     
     @classmethod
     def _generate_projection_reasoning(
