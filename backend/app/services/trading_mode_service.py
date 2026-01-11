@@ -315,3 +315,171 @@ class TradingModeService:
         
         return summary, detailed_explanation
 
+    async def _calculate_operational_levels(
+        self,
+        mode: TradingMode,
+        instrument: str,
+        yesterday_analysis: DailyMarketAnalysis
+    ) -> list[OperationalLevel]:
+        """
+        Calcula niveles operativos recomendados según el modo de trading
+        @param mode - Modo de trading recomendado
+        @param instrument - Instrumento analizado
+        @param yesterday_analysis - Análisis del día anterior
+        @returns Lista de niveles operativos recomendados
+        """
+        # Obtener precio actual
+        current_price = yesterday_analysis.current_day_close
+        
+        # Obtener datos históricos para detectar niveles
+        try:
+            from app.providers.market_data.mock_market_provider import MockMarketDataProvider
+            provider = MockMarketDataProvider()
+            
+            # Obtener últimos 30 días de datos
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)
+            
+            historical_data = await provider.get_historical_data(
+                symbol=instrument,
+                interval="1h",
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            if not historical_data:
+                logger.warning("No historical data available for operational levels")
+                return []
+            
+        except Exception as e:
+            logger.warning(f"Error fetching historical data for operational levels: {str(e)}")
+            return []
+        
+        # Detectar niveles psicológicos cercanos
+        levels_info = self.level_detector.detect_nearby_levels(
+            current_price=current_price,
+            max_distance_points=200.0
+        )
+        
+        if not levels_info:
+            return []
+        
+        # Calcular fuerza de niveles basada en reacciones históricas
+        levels_with_strength = []
+        for level_price in levels_info:
+            # Detectar rupturas en el histórico para calcular fuerza
+            breaks = self.level_detector.detect_level_breaks(
+                candles=historical_data,
+                level=level_price
+            )
+            
+            # Calcular fuerza: más reacciones = más fuerte
+            bounce_count = sum(1 for b in breaks if b.break_type == "bounce")
+            total_tests = len(breaks)
+            strength = min(1.0, bounce_count / max(1, total_tests))
+            
+            levels_with_strength.append({
+                "level": level_price,
+                "strength": strength,
+                "total_tests": total_tests
+            })
+        
+        # Filtrar y ordenar según el modo
+        operational_levels: list[OperationalLevel] = []
+        
+        if mode == TradingMode.CALM or mode == TradingMode.VERY_CALM:
+            # Modo CALMA: Solo niveles fuertes (100s) con alta fuerza
+            strong_levels = [
+                lv for lv in levels_with_strength
+                if lv["level"] % 100 == 0  # Solo niveles de 100
+                and lv["strength"] >= 0.6  # Fuerza alta
+                and lv["total_tests"] >= 3  # Mínimo 3 tests históricos
+            ]
+            
+            # Tomar máximo 3 niveles más cercanos
+            strong_levels.sort(key=lambda lv: abs(lv["level"] - current_price))
+            selected_levels = strong_levels[:3]
+            
+            for lv in selected_levels:
+                level_price = lv["level"]
+                is_support = level_price < current_price
+                
+                operational_levels.append(OperationalLevel(
+                    level=level_price,
+                    type=LevelType.SUPPORT if is_support else LevelType.RESISTANCE,
+                    distance_points=abs(level_price - current_price),
+                    distance_percentage=(abs(level_price - current_price) / current_price) * 100,
+                    strength=lv["strength"],
+                    action="Esperar rebote" if is_support else "Esperar rechazo",
+                    explanation=(
+                        f"Nivel redondo fuerte ({int(lv['total_tests'])} tests históricos, "
+                        f"{lv['strength']*100:.0f}% de rebotes). "
+                        f"En modo {mode.value}, solo operar en niveles muy fuertes."
+                    )
+                ))
+        
+        elif mode == TradingMode.AGGRESSIVE:
+            # Modo AGRESIVO: Niveles de 100s y 50s, permitir breakouts
+            all_strong_levels = [
+                lv for lv in levels_with_strength
+                if (lv["level"] % 100 == 0 or lv["level"] % 50 == 0)  # 100s y 50s
+                and lv["strength"] >= 0.4  # Fuerza media-alta
+            ]
+            
+            # Tomar máximo 5 niveles más cercanos
+            all_strong_levels.sort(key=lambda lv: abs(lv["level"] - current_price))
+            selected_levels = all_strong_levels[:5]
+            
+            for lv in selected_levels:
+                level_price = lv["level"]
+                is_support = level_price < current_price
+                is_round_100 = level_price % 100 == 0
+                
+                if is_round_100:
+                    action = "Rebote o breakout confirmado" if is_support else "Rechazo o breakout confirmado"
+                else:
+                    action = "Entrada en retroceso" if is_support else "Entrada en rechazo"
+                
+                operational_levels.append(OperationalLevel(
+                    level=level_price,
+                    type=LevelType.SUPPORT if is_support else LevelType.RESISTANCE,
+                    distance_points=abs(level_price - current_price),
+                    distance_percentage=(abs(level_price - current_price) / current_price) * 100,
+                    strength=lv["strength"],
+                    action=action,
+                    explanation=(
+                        f"Nivel {'redondo' if is_round_100 else 'intermedio'} "
+                        f"({int(lv['total_tests'])} tests, {lv['strength']*100:.0f}% rebotes). "
+                        f"En modo agresivo, operar tanto rebotes como breakouts confirmados."
+                    )
+                ))
+        
+        elif mode == TradingMode.OBSERVE:
+            # Modo OBSERVAR: Niveles informativos solamente
+            all_levels = [
+                lv for lv in levels_with_strength
+                if lv["level"] % 100 == 0  # Solo 100s para observar
+            ]
+            
+            all_levels.sort(key=lambda lv: abs(lv["level"] - current_price))
+            selected_levels = all_levels[:2]
+            
+            for lv in selected_levels:
+                level_price = lv["level"]
+                is_support = level_price < current_price
+                
+                operational_levels.append(OperationalLevel(
+                    level=level_price,
+                    type=LevelType.SUPPORT if is_support else LevelType.RESISTANCE,
+                    distance_points=abs(level_price - current_price),
+                    distance_percentage=(abs(level_price - current_price) / current_price) * 100,
+                    strength=lv["strength"],
+                    action="Solo observar - NO operar",
+                    explanation=(
+                        f"Nivel clave para observar. "
+                        f"En modo observar, NO se recomienda operar. "
+                        f"Esperar mejores condiciones de mercado."
+                    )
+                ))
+        
+        return operational_levels
