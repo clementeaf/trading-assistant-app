@@ -644,3 +644,31 @@ class TradingAdvisorService:
         ratio = reward / risk if risk > 0 else 0.0
         return f"1:{ratio:.2f}"
 
+    def _calculate_confidence_breakdown(
+        self,
+        technical_score: float,
+        market_score: float,
+        news_score: float
+    ) -> dict[str, float]:
+        """
+        Calcula el desglose de confianza por factores
+        @param technical_score - Puntuación de análisis técnico (0-1)
+        @param market_score - Puntuación de contexto de mercado (0-1)
+        @param news_score - Puntuación de impacto de noticias (0-1)
+        @returns Diccionario con desglose
+        """
+        # Pesos ponderados para la confianza general
+        # Técnico: 50%, Mercado: 30%, Noticias: 20%
+        overall = (
+            technical_score * 0.5 +
+            market_score * 0.3 +
+            news_score * 0.2
+        )
+        
+        return {
+            "technical_analysis": round(technical_score, 2),
+            "market_context": round(market_score, 2),
+            "news_impact": round(news_score, 2),
+            "overall": round(overall, 2)
+        }
+

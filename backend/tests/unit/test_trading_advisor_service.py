@@ -83,3 +83,23 @@ class TestTradingAdvisorService:
         )
         
         assert result == "1:1.50"
+
+    def test_calculate_confidence_breakdown(self, mock_dependencies):
+        """Test cálculo de desglose de confianza"""
+        service = TradingAdvisorService(**mock_dependencies)
+        
+        # Technical: 0.7 * 0.5 = 0.35
+        # Market: 0.6 * 0.3 = 0.18
+        # News: 0.5 * 0.2 = 0.10
+        # Overall: 0.35 + 0.18 + 0.10 = 0.63
+        result = service._calculate_confidence_breakdown(
+            technical_score=0.7,
+            market_score=0.6,
+            news_score=0.5
+        )
+        
+        assert isinstance(result, dict)
+        assert result["technical_analysis"] == 0.7
+        assert result["market_context"] == 0.6
+        assert result["news_impact"] == 0.5
+        assert result["overall"] == 0.63
