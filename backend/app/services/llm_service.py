@@ -927,3 +927,252 @@ Include in your analysis:
 Respond ONLY with JSON (no markdown, no extra explanations)."""
         
         return prompt
+    
+    async def answer_market_question(
+        self,
+        question: str,
+        context: dict[str, any],
+        language: str = "es"
+    ) -> dict[str, any]:
+        """
+        Responde pregunta sobre mercado usando contexto actual
+        
+        Args:
+            question: Pregunta del usuario en lenguaje natural
+            context: Contexto de mercado (precio, noticias, sesgo, etc)
+            language: Idioma de respuesta (es, en)
+        
+        Returns:
+            dict: Respuesta con answer, confidence, sources_used, related_topics
+        
+        Raises:
+            ValueError: Si el servicio LLM no está configurado
+            Exception: Si falla la generación de respuesta
+        """
+        if not self.client:
+            raise ValueError(
+                "LLM service not configured. Please set OPENAI_API_KEY in environment."
+            )
+        
+        # Construir prompt con contexto
+        prompt = self._build_qa_prompt(
+            question=question,
+            context=context,
+            language=language
+        )
+        
+        try:
+            logger.info(f"Answering market question: '{question[:50]}...'")
+            
+            # Llamar a OpenAI
+            response: ChatCompletion = await self.client.chat.completions.create(
+                model=self.settings.openai_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self._get_qa_system_prompt(language)
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.6,  # Balance entre creatividad y precisión
+                max_tokens=600,   # Respuestas detalladas
+                response_format={"type": "json_object"}
+            )
+            
+            # Extraer y parsear respuesta
+            content = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens if response.usage else None
+            
+            logger.info(f"Q&A response generated (tokens: {tokens_used})")
+            
+            # Parsear JSON
+            answer_data = json.loads(content)
+            
+            # Validar campos requeridos
+            if "answer" not in answer_data:
+                raise ValueError("LLM response missing 'answer' field")
+            
+            # Agregar metadata
+            answer_data["tokens_used"] = tokens_used
+            
+            logger.info(f"Q&A completed with confidence: {answer_data.get('confidence', 0.0)}")
+            
+            return answer_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Q&A response as JSON: {str(e)}")
+            raise Exception("Failed to parse LLM response") from e
+        except Exception as e:
+            logger.error(f"Error answering market question: {str(e)}", exc_info=True)
+            raise
+    
+    def _get_qa_system_prompt(self, language: str) -> str:
+        """
+        Obtiene el system prompt para Q&A
+        
+        Args:
+            language: Código de idioma (es, en)
+        
+        Returns:
+            str: System prompt
+        """
+        if language == "es":
+            return """Eres un asistente experto en análisis de mercados financieros, especializado en Gold (XAU/USD).
+
+Tu tarea es responder preguntas del usuario sobre el mercado de forma clara, precisa y útil.
+
+IMPORTANTE:
+- Responde SOLO en formato JSON válido
+- Usa el contexto de mercado proporcionado para fundamentar tu respuesta
+- Si no tienes suficiente información, indícalo claramente
+- Sé honesto sobre la incertidumbre del mercado
+- No des consejos financieros definitivos, solo análisis probabilístico
+- Menciona las fuentes de datos que utilizaste
+
+FORMATO DE RESPUESTA (JSON):
+{
+  "answer": "Respuesta clara y concisa a la pregunta del usuario (150-300 palabras)",
+  "confidence": 0.75,
+  "sources_used": ["precio_actual", "noticias_alto_impacto", "analisis_tecnico"],
+  "related_topics": ["¿Cómo afecta el DXY a Gold?", "¿Qué niveles técnicos son clave?"]
+}
+
+TONO:
+- Profesional pero accesible
+- Educativo (explica conceptos si es necesario)
+- Honesto sobre limitaciones y riesgos
+- Optimista pero realista"""
+        else:  # English
+            return """You are an expert financial market analyst, specialized in Gold (XAU/USD).
+
+Your task is to answer user questions about the market clearly, accurately, and helpfully.
+
+IMPORTANT:
+- Respond ONLY in valid JSON format
+- Use the provided market context to support your answer
+- If you don't have enough information, state it clearly
+- Be honest about market uncertainty
+- Don't give definitive financial advice, only probabilistic analysis
+- Mention the data sources you used
+
+RESPONSE FORMAT (JSON):
+{
+  "answer": "Clear and concise answer to user's question (150-300 words)",
+  "confidence": 0.75,
+  "sources_used": ["current_price", "high_impact_news", "technical_analysis"],
+  "related_topics": ["How does DXY affect Gold?", "What are key technical levels?"]
+}
+
+TONE:
+- Professional but accessible
+- Educational (explain concepts if needed)
+- Honest about limitations and risks
+- Optimistic but realistic"""
+    
+    def _build_qa_prompt(
+        self,
+        question: str,
+        context: dict[str, any],
+        language: str
+    ) -> str:
+        """
+        Construye el prompt para Q&A
+        
+        Args:
+            question: Pregunta del usuario
+            context: Contexto de mercado
+            language: Idioma
+        
+        Returns:
+            str: Prompt completo
+        """
+        if language == "es":
+            prompt = f"""Pregunta del usuario: "{question}"
+
+CONTEXTO DE MERCADO ACTUAL:
+"""
+            
+            # Agregar contexto disponible
+            if context.get("current_price"):
+                prompt += f"- Precio actual de Gold: ${context['current_price']:.2f}\n"
+            
+            if context.get("daily_change_percent") is not None:
+                change = context["daily_change_percent"]
+                direction = "sube" if change > 0 else "baja"
+                prompt += f"- Cambio diario: {direction} {abs(change):.2f}%\n"
+            
+            if context.get("high_impact_news_count"):
+                prompt += f"- Noticias de alto impacto hoy: {context['high_impact_news_count']}\n"
+            
+            if context.get("market_bias"):
+                prompt += f"- Sesgo de mercado: {context['market_bias']}\n"
+            
+            if context.get("trading_mode"):
+                prompt += f"- Modo de trading recomendado: {context['trading_mode']}\n"
+            
+            if context.get("dxy_price"):
+                prompt += f"- DXY (índice dólar): {context['dxy_price']:.2f}\n"
+            
+            if context.get("bond_yield"):
+                prompt += f"- Rendimiento bono US10Y: {context['bond_yield']:.2f}%\n"
+            
+            if context.get("geopolitical_risk"):
+                prompt += f"- Riesgo geopolítico: {context['geopolitical_risk']}\n"
+            
+            prompt += """
+INSTRUCCIONES:
+1. Responde la pregunta del usuario usando el contexto proporcionado
+2. Sé específico y fundamenta tu respuesta con datos
+3. Asigna nivel de confianza (0.0-1.0) basado en certeza de la respuesta
+4. Lista las fuentes de datos que usaste
+5. Sugiere 2-3 preguntas relacionadas que el usuario podría tener
+
+Responde en formato JSON según el esquema especificado."""
+        
+        else:  # English
+            prompt = f"""User question: "{question}"
+
+CURRENT MARKET CONTEXT:
+"""
+            
+            # Add available context
+            if context.get("current_price"):
+                prompt += f"- Current Gold price: ${context['current_price']:.2f}\n"
+            
+            if context.get("daily_change_percent") is not None:
+                change = context["daily_change_percent"]
+                direction = "up" if change > 0 else "down"
+                prompt += f"- Daily change: {direction} {abs(change):.2f}%\n"
+            
+            if context.get("high_impact_news_count"):
+                prompt += f"- High-impact news today: {context['high_impact_news_count']}\n"
+            
+            if context.get("market_bias"):
+                prompt += f"- Market bias: {context['market_bias']}\n"
+            
+            if context.get("trading_mode"):
+                prompt += f"- Recommended trading mode: {context['trading_mode']}\n"
+            
+            if context.get("dxy_price"):
+                prompt += f"- DXY (dollar index): {context['dxy_price']:.2f}\n"
+            
+            if context.get("bond_yield"):
+                prompt += f"- US10Y bond yield: {context['bond_yield']:.2f}%\n"
+            
+            if context.get("geopolitical_risk"):
+                prompt += f"- Geopolitical risk: {context['geopolitical_risk']}\n"
+            
+            prompt += """
+INSTRUCTIONS:
+1. Answer user's question using provided context
+2. Be specific and support your answer with data
+3. Assign confidence level (0.0-1.0) based on answer certainty
+4. List data sources you used
+5. Suggest 2-3 related questions user might have
+
+Respond in JSON format according to specified schema."""
+        
+        return prompt

@@ -16,6 +16,7 @@ from app.models.psychological_levels import PsychologicalLevelsResponse
 from app.models.trading_mode import TradingModeRecommendation
 from app.models.trading_recommendation import TradeRecommendation
 from app.models.daily_summary import DailySummary, MarketContext
+from app.models.market_question import MarketQuestionRequest, MarketQuestionResponse
 from app.services.economic_calendar_service import EconomicCalendarService
 from app.services.market_analysis_service import MarketAnalysisService
 from app.services.market_alignment_service import MarketAlignmentService
@@ -771,4 +772,115 @@ async def get_daily_summary(
             status_code=500,
             detail=f"Error interno al generar resumen diario: {str(e)}"
         )
+
+
+@router.post(
+    "/ask",
+    response_model=MarketQuestionResponse,
+    summary="Pregunta sobre el mercado en lenguaje natural",
+    description="Responde preguntas del usuario sobre Gold/XAU/USD usando contexto de mercado actual."
+)
+async def ask_market_question(
+    request: MarketQuestionRequest,
+    instrument: str = Query(
+        "XAUUSD",
+        description="Instrumento sobre el que preguntar",
+        pattern="^[A-Z0-9]{3,10}$"
+    ),
+    economic_calendar_service: EconomicCalendarService = Depends(get_economic_calendar_service),
+    market_alignment_service: MarketAlignmentService = Depends(get_market_alignment_service),
+    trading_mode_service: TradingModeService = Depends(get_trading_mode_service),
+    llm_service: LLMService = Depends(get_llm_service),
+    settings: Settings = Depends(get_settings)
+) -> MarketQuestionResponse:
+    """
+    Endpoint para responder preguntas sobre el mercado en lenguaje natural
+    @param request - Pregunta del usuario
+    @param instrument - Instrumento a consultar
+    @returns Respuesta con análisis y sugerencias
+    """
+    import time
+    start_time = time.time()
+    
+    try:
+        validated_instrument = InstrumentValidator.validate_instrument(instrument)
+        logger.info(f"Processing question for {validated_instrument}: '{request.question[:50]}...'")
+        
+        # Construir contexto de mercado
+        context_dict: dict[str, any] = {}
+        
+        if request.include_context:
+            try:
+                # Obtener noticias de alto impacto
+                try:
+                    high_impact_news = await economic_calendar_service.get_high_impact_news_today()
+                    context_dict["high_impact_news_count"] = len(high_impact_news.events)
+                    if high_impact_news.geopolitical_risk:
+                        context_dict["geopolitical_risk"] = high_impact_news.geopolitical_risk.level
+                except Exception:
+                    context_dict["high_impact_news_count"] = 0
+                
+                # Obtener alineación de mercado
+                try:
+                    alignment = await market_alignment_service.analyze_dxy_bond_alignment(
+                        gold_symbol=validated_instrument
+                    )
+                    context_dict["market_bias"] = alignment.market_bias
+                    if alignment.dxy_current:
+                        context_dict["dxy_price"] = alignment.dxy_current
+                    if alignment.bond_yield_current:
+                        context_dict["bond_yield"] = alignment.bond_yield_current
+                except Exception:
+                    pass
+                
+                # Obtener modo de trading
+                try:
+                    trading_mode = await trading_mode_service.get_trading_mode_recommendation(
+                        instrument=validated_instrument
+                    )
+                    context_dict["trading_mode"] = trading_mode.mode
+                except Exception:
+                    pass
+                
+                logger.info(f"Context built with {len(context_dict)} data points")
+            except Exception as context_error:
+                logger.error(f"Error building context: {str(context_error)}")
+        
+        # Responder pregunta con LLM
+        answer_data = await llm_service.answer_market_question(
+            question=request.question,
+            context=context_dict,
+            language=request.language
+        )
+        
+        # Calcular tiempo de respuesta
+        response_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Construir respuesta
+        response = MarketQuestionResponse(
+            question=request.question,
+            answer=answer_data["answer"],
+            confidence=answer_data.get("confidence", 0.5),
+            sources_used=answer_data.get("sources_used", []),
+            related_topics=answer_data.get("related_topics", []),
+            context=None if not request.include_context else context_dict,
+            model_used=settings.openai_model,
+            tokens_used=answer_data.get("tokens_used"),
+            response_time_ms=response_time_ms
+        )
+        
+        logger.info(
+            f"Question answered (confidence: {response.confidence:.2f}, time: {response_time_ms}ms)"
+        )
+        
+        return response
+        
+    except ValueError as e:
+        logger.warning(f"Invalid parameter: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error answering question: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to answer market question")
 
