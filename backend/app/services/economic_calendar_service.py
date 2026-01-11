@@ -371,3 +371,181 @@ class EconomicCalendarService:
             f"Hoy hay {len(events)} noticias de alto impacto para XAUUSD: "
             f"{descriptions_text} y {last_description}."
         )
+    
+    async def get_upcoming_events(
+        self,
+        days: int = 7,
+        currency: str = "USD",
+        min_impact: ImpactLevel = ImpactLevel.MEDIUM
+    ) -> UpcomingEventsResponse:
+        """
+        Obtiene eventos económicos futuros con countdown
+        
+        Args:
+            days: Número de días a consultar (default: 7)
+            currency: Moneda para filtrar (default: USD)
+            min_impact: Impacto mínimo (default: MEDIUM)
+        
+        Returns:
+            UpcomingEventsResponse: Eventos futuros con countdown y metadata
+        """
+        from datetime import datetime, timedelta
+        
+        logger.info(f"Fetching upcoming events for next {days} days (currency={currency}, min_impact={min_impact})")
+        
+        now = datetime.now()
+        today = now.date()
+        
+        # Obtener eventos de los próximos N días
+        all_events: list[EconomicEvent] = []
+        
+        for i in range(days + 1):
+            target_date = today + timedelta(days=i)
+            
+            # Skip weekends
+            if not BusinessDays.is_business_day(target_date):
+                continue
+            
+            try:
+                # Obtener eventos del día
+                events = await self.provider.fetch_events(target_date, currency)
+                
+                # Categorizar eventos automáticamente
+                for event in events:
+                    if not hasattr(event, 'event_type') or event.event_type is None:
+                        event.event_type = EventCategorizer.categorize(
+                            event.description,
+                            event.country
+                        )
+                
+                # Filtrar por impacto mínimo
+                filtered_events = [
+                    event for event in events
+                    if self._meets_min_impact(event.importance, min_impact)
+                ]
+                
+                all_events.extend(filtered_events)
+                
+            except Exception as e:
+                logger.warning(f"Error fetching events for {target_date}: {str(e)}")
+                continue
+        
+        # Crear UpcomingEvent para cada evento
+        upcoming_events: list[UpcomingEvent] = []
+        
+        for event in all_events:
+            # Calcular countdown
+            time_until = event.date - now
+            days_until = time_until.days
+            hours_until = int(time_until.total_seconds() / 3600) if days_until < 2 else None
+            
+            # Calcular flags
+            is_today = event.date.date() == today
+            is_tomorrow = event.date.date() == (today + timedelta(days=1))
+            is_this_week = days_until <= 7
+            
+            # Obtener tier y hora típica
+            tier = EventCategorizer.get_tier(event.event_type)
+            typical_time = EventCategorizer.get_typical_time_et(event.event_type)
+            
+            upcoming_event = UpcomingEvent(
+                event=event,
+                days_until=days_until,
+                hours_until=hours_until,
+                is_today=is_today,
+                is_tomorrow=is_tomorrow,
+                is_this_week=is_this_week,
+                tier=tier,
+                typical_time_et=typical_time
+            )
+            
+            upcoming_events.append(upcoming_event)
+        
+        # Ordenar por fecha (más cercano primero)
+        upcoming_events.sort(key=lambda e: e.event.date)
+        
+        # Encontrar próximo evento de alto impacto (Tier 1-2)
+        next_high_impact = next(
+            (e for e in upcoming_events if e.tier <= 2),
+            None
+        )
+        
+        # Generar resumen
+        summary = self._generate_upcoming_summary(upcoming_events, next_high_impact)
+        
+        logger.info(f"Found {len(upcoming_events)} upcoming events in next {days} days")
+        
+        return UpcomingEventsResponse(
+            events=upcoming_events,
+            total_events=len(upcoming_events),
+            next_high_impact=next_high_impact,
+            days_range=days,
+            summary=summary
+        )
+    
+    def _meets_min_impact(self, event_impact: ImpactLevel, min_impact: ImpactLevel) -> bool:
+        """
+        Verifica si un evento cumple con el impacto mínimo requerido
+        
+        Args:
+            event_impact: Impacto del evento
+            min_impact: Impacto mínimo requerido
+        
+        Returns:
+            bool: True si cumple con el mínimo
+        """
+        impact_order = {
+            ImpactLevel.LOW: 1,
+            ImpactLevel.MEDIUM: 2,
+            ImpactLevel.HIGH: 3
+        }
+        
+        return impact_order.get(event_impact, 0) >= impact_order.get(min_impact, 0)
+    
+    def _generate_upcoming_summary(
+        self,
+        events: list[UpcomingEvent],
+        next_high_impact: Optional[UpcomingEvent]
+    ) -> str:
+        """
+        Genera resumen de eventos futuros
+        
+        Args:
+            events: Lista de eventos futuros
+            next_high_impact: Próximo evento de alto impacto
+        
+        Returns:
+            str: Resumen textual
+        """
+        if not events:
+            return "No hay eventos económicos significativos en los próximos días."
+        
+        # Contar eventos por tier
+        tier1_count = sum(1 for e in events if e.tier == 1)
+        tier2_count = sum(1 for e in events if e.tier == 2)
+        
+        # Construir resumen
+        parts = []
+        
+        if tier1_count > 0:
+            parts.append(f"{tier1_count} evento(s) de máximo impacto")
+        
+        if tier2_count > 0:
+            parts.append(f"{tier2_count} evento(s) de alto impacto")
+        
+        if not parts:
+            return f"Próximos {len(events)} eventos económicos de impacto medio."
+        
+        summary = f"Próximos {len(events)} eventos: {' y '.join(parts)}."
+        
+        # Agregar info del próximo evento importante
+        if next_high_impact:
+            event_name = next_high_impact.event.description
+            if next_high_impact.is_today:
+                summary += f" Hoy: {event_name}."
+            elif next_high_impact.is_tomorrow:
+                summary += f" Mañana: {event_name}."
+            else:
+                summary += f" En {next_high_impact.days_until} días: {event_name}."
+        
+        return summary

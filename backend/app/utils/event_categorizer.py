@@ -8,7 +8,7 @@ from app.models.economic_calendar import EventType
 class EventCategorizer:
     """Categoriza eventos económicos basándose en descripción y metadata"""
     
-    # Mapeo de keywords a EventType
+    # Mapeo de keywords a EventType (orden importa!)
     KEYWORD_PATTERNS = {
         EventType.FOMC: [
             r"fomc",
@@ -20,7 +20,6 @@ class EventCategorizer:
         EventType.NFP: [
             r"non[-\s]?farm",
             r"nonfarm",
-            r"payroll",
             r"employment.*situation"
         ],
         EventType.CPI: [
@@ -51,26 +50,29 @@ class EventCategorizer:
             r"\bppi\b",
             r"producer.*price.*index"
         ],
+        # ISM debe ir antes que PMI genérico
+        EventType.ISM_SERVICES: [
+            r"ism.*non[-\s]?manufactur",
+            r"ism.*services"
+        ],
+        EventType.ISM_MANUFACTURING: [
+            r"ism.*manufactur(?!ing)",  # manufacturing pero no non-manufacturing
+            r"ism.*manufacturing"
+        ],
         EventType.PMI: [
             r"\bpmi\b",
             r"purchasing.*manager",
             r"markit.*pmi"
         ],
-        EventType.ISM_MANUFACTURING: [
-            r"ism.*manufactur",
-            r"manufacturing.*pmi"
-        ],
-        EventType.ISM_SERVICES: [
-            r"ism.*services",
-            r"ism.*non[-\s]?manufactur"
-        ],
         EventType.JOLTS: [
             r"jolts",
             r"job.*openings"
         ],
+        # ADP debe ir antes que payroll genérico
         EventType.ADP_EMPLOYMENT: [
             r"adp.*employment",
-            r"adp.*payroll"
+            r"adp.*payroll",
+            r"\badp\b"
         ],
         EventType.JOBLESS_CLAIMS: [
             r"initial.*claims",

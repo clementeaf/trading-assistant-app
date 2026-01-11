@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config.settings import Settings, get_settings
 from app.db.session import get_db
-from app.models.economic_calendar import EventScheduleResponse, HighImpactNewsResponse
+from app.models.economic_calendar import EventScheduleResponse, HighImpactNewsResponse, UpcomingEventsResponse, ImpactLevel
 from app.models.market_analysis import DailyMarketAnalysis
 from app.models.market_alignment import MarketAlignmentAnalysis
 from app.models.psychological_levels import PsychologicalLevelsResponse
@@ -883,4 +883,70 @@ async def ask_market_question(
     except Exception as e:
         logger.error(f"Unexpected error answering question: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to answer market question")
+
+
+@router.get(
+    "/calendar/upcoming",
+    response_model=UpcomingEventsResponse,
+    summary="Próximos eventos económicos con countdown",
+    description="Obtiene calendario de eventos económicos futuros con countdown (días/horas hasta evento). Útil para anticipar volatilidad."
+)
+async def get_upcoming_calendar(
+    days: int = Query(
+        7,
+        ge=1,
+        le=30,
+        description="Número de días a consultar (1-30)"
+    ),
+    min_impact: ImpactLevel = Query(
+        ImpactLevel.MEDIUM,
+        description="Impacto mínimo de eventos a incluir (LOW, MEDIUM, HIGH)"
+    ),
+    currency: str = Query(
+        "USD",
+        description="Moneda para filtrar eventos",
+        pattern="^[A-Z]{3}$"
+    ),
+    service: EconomicCalendarService = Depends(get_economic_calendar_service)
+) -> UpcomingEventsResponse:
+    """
+    Endpoint para obtener próximos eventos económicos con countdown
+    
+    Características:
+    - Categorización automática (FOMC, NFP, CPI, etc.)
+    - Countdown en días/horas
+    - Tier system (1=máximo impacto, 5=bajo)
+    - Próximo evento de alto impacto destacado
+    - Horarios típicos en ET
+    
+    @param days - Días a consultar (1-30)
+    @param min_impact - Impacto mínimo (LOW, MEDIUM, HIGH)
+    @param currency - Moneda (default: USD)
+    @param service - Servicio de calendario económico
+    @returns Eventos futuros con countdown y resumen
+    """
+    try:
+        logger.info(f"Fetching upcoming calendar: days={days}, min_impact={min_impact}, currency={currency}")
+        
+        result = await service.get_upcoming_events(
+            days=days,
+            currency=currency,
+            min_impact=min_impact
+        )
+        
+        logger.info(
+            f"Upcoming calendar fetched: {result.total_events} events, "
+            f"next_high_impact={'Yes' if result.next_high_impact else 'No'}"
+        )
+        
+        return result
+        
+    except ValueError as e:
+        logger.warning(f"Invalid parameter: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error fetching upcoming calendar: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch upcoming calendar")
 
