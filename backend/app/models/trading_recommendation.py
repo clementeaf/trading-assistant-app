@@ -60,6 +60,7 @@ class TradeRecommendation(BaseModel):
     resistance_level: Optional[float] = Field(None, description="Nivel de resistencia identificado")
     
     # Análisis técnico avanzado multi-temporalidad
+    weekly_trend: Optional[str] = Field(None, description="Tendencia semanal (alcista/bajista/lateral)")
     daily_trend: Optional[str] = Field(None, description="Tendencia diaria (alcista/bajista/lateral)")
     h4_trend: Optional[str] = Field(None, description="Tendencia H4 (alcista/bajista/lateral)")
     h4_rsi: Optional[float] = Field(None, description="RSI en H4")
@@ -75,6 +76,20 @@ class TradeRecommendation(BaseModel):
     h4_ema_50: Optional[float] = Field(None, description="EMA 50 en H4")
     h4_ema_100: Optional[float] = Field(None, description="EMA 100 en H4")
     h4_ema_200: Optional[float] = Field(None, description="EMA 200 en H4")
+    
+    # Probabilidades por escenario (NUEVO - Fase 4)
+    scenario_probabilities: Optional[list[dict]] = Field(
+        None,
+        description="Probabilidades de diferentes escenarios (breakout, retest, etc)"
+    )
+    primary_scenario: Optional[dict] = Field(
+        None,
+        description="Escenario principal con mayor probabilidad"
+    )
+    convergence_strength: Optional[float] = Field(
+        None,
+        description="Fuerza de convergencia multi-timeframe (0-1)"
+    )
     
     # Contexto del mercado
     market_context: str = Field(..., description="Contexto del mercado (risk-on/risk-off/neutral)")

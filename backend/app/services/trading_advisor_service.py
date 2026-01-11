@@ -25,6 +25,7 @@ from app.services.market_analysis_service import MarketAnalysisService
 from app.services.trading_mode_service import TradingModeService
 from app.services.technical_analysis_service import TechnicalAnalysisService
 from app.services.llm_service import LLMService
+from app.utils.scenario_probability_calculator import ScenarioProbabilityCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -307,6 +308,37 @@ Estructura: {'Cerca de soporte' if price_near_support else 'Cerca de resistencia
                 logger.warning(f"Failed to generate LLM justification: {str(e)}")
                 # No falla si el LLM falla, simplemente no incluye justificación
         
+        # Calcular probabilidades por escenario (Fase 4)
+        scenario_probabilities_list = []
+        primary_scenario_dict = None
+        convergence_strength_value = None
+        weekly_trend_value = None
+        
+        if technical_analysis and "weekly" in technical_analysis and "daily" in technical_analysis and "h4" in technical_analysis:
+            try:
+                logger.info("Calculating scenario probabilities...")
+                scenario_analysis = ScenarioProbabilityCalculator.analyze_scenarios(
+                    instrument=instrument,
+                    current_price=current_price,
+                    weekly_analysis=technical_analysis["weekly"],
+                    daily_analysis=technical_analysis["daily"],
+                    h4_analysis=technical_analysis["h4"]
+                )
+                
+                # Convertir a dict para serialización
+                primary_scenario_dict = scenario_analysis.primary_scenario.model_dump()
+                scenario_probabilities_list = [s.model_dump() for s in scenario_analysis.alternative_scenarios]
+                convergence_strength_value = scenario_analysis.convergence_strength
+                weekly_trend_value = technical_analysis["weekly"].get("trend")
+                
+                logger.info(
+                    f"Scenario probabilities calculated. Primary: {scenario_analysis.primary_scenario.scenario.value} "
+                    f"({scenario_analysis.primary_scenario.probability:.0%})"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to calculate scenario probabilities: {str(e)}", exc_info=True)
+                # No falla el endpoint si esto falla
+        
         return TradeRecommendation(
             disclaimer=DISCLAIMER_TEXT.strip(),
             analysis_date=analysis_date,
@@ -324,6 +356,7 @@ Estructura: {'Cerca de soporte' if price_near_support else 'Cerca de resistencia
             resistance_level=resistance,
             market_context=alignment_analysis.market_bias.value,
             trading_mode=trading_mode_rec.mode.value,
+            weekly_trend=weekly_trend_value,
             daily_trend=daily_trend,
             h4_trend=h4_trend,
             h4_rsi=h4_rsi,
@@ -337,6 +370,9 @@ Estructura: {'Cerca de soporte' if price_near_support else 'Cerca de resistencia
             h4_ema_50=h4_ema_50,
             h4_ema_100=h4_ema_100,
             h4_ema_200=h4_ema_200,
+            scenario_probabilities=scenario_probabilities_list if scenario_probabilities_list else None,
+            primary_scenario=primary_scenario_dict,
+            convergence_strength=convergence_strength_value,
             reasons=reasons,
             summary=summary,
             detailed_explanation=detailed_explanation,
