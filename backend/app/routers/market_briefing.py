@@ -33,15 +33,17 @@ router = APIRouter(prefix="/api/market-briefing", tags=["Market Briefing"])
 
 def get_economic_calendar_service(
     settings: Settings = Depends(get_settings),
+    llm_service: LLMService = Depends(get_llm_service),
     db: Optional[Session] = Depends(get_db)
 ) -> EconomicCalendarService:
     """
     Dependency para obtener el servicio de calendario económico
     @param settings - Configuración de la aplicación
+    @param llm_service - Servicio LLM
     @param db - Sesión de base de datos
     @returns Instancia del servicio de calendario económico
     """
-    return EconomicCalendarService(settings, db)
+    return EconomicCalendarService(settings, llm_service, db)
 
 
 def get_market_analysis_service(
@@ -234,12 +236,23 @@ async def get_event_schedule(
         True,
         description="Incluir estimación de impacto en Gold para cada evento"
     ),
+    include_sentiment: bool = Query(
+        False,
+        description="Incluir análisis de sentimiento LLM para cada evento (requiere OPENAI_API_KEY)"
+    ),
+    sentiment_language: str = Query(
+        "es",
+        description="Idioma para análisis de sentimiento (es, en)",
+        pattern="^(es|en)$"
+    ),
     service: EconomicCalendarService = Depends(get_economic_calendar_service)
 ) -> EventScheduleResponse:
     """
     Endpoint para obtener el calendario de eventos económicos de alto impacto del día actual.
     @param currency - Moneda para filtrar (opcional, por defecto USD).
     @param include_gold_impact - Si incluir estimación de impacto en Gold
+    @param include_sentiment - Si incluir análisis de sentimiento LLM (opcional)
+    @param sentiment_language - Idioma para análisis de sentimiento (es, en)
     @param service - Servicio de calendario económico.
     @returns Respuesta con el calendario de eventos formateado.
     """
@@ -257,11 +270,13 @@ async def get_event_schedule(
 
         logger.info(
             f"Fetching event schedule with currency: {validated_currency or 'USD'}, "
-            f"include_gold_impact={include_gold_impact}"
+            f"include_gold_impact={include_gold_impact}, include_sentiment={include_sentiment}"
         )
         result = await service.get_event_schedule_today(
             currency=validated_currency,
-            include_gold_impact=include_gold_impact
+            include_gold_impact=include_gold_impact,
+            include_sentiment=include_sentiment,
+            sentiment_language=sentiment_language
         )
         logger.info(f"Successfully retrieved {result.total_events} events, {result.usd_events_count} affecting USD")
         return result

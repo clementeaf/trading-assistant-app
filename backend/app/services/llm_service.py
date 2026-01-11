@@ -218,6 +218,157 @@ class LLMService:
             logger.error(f"Error generating trade justification: {str(e)}", exc_info=True)
             raise Exception(f"Failed to generate trade justification: {str(e)}")
     
+    async def analyze_news_sentiment(
+        self,
+        news_title: str,
+        news_currency: str = "USD",
+        language: str = "es"
+    ) -> str:
+        """
+        Analiza el sentimiento de una noticia económica para Gold
+        
+        Args:
+            news_title: Título de la noticia (ej: "NFP Better Than Expected")
+            news_currency: Moneda del evento (USD, EUR, etc)
+            language: Idioma de análisis (es, en)
+        
+        Returns:
+            str: Sentimiento ("BULLISH", "BEARISH", "NEUTRAL")
+        
+        Raises:
+            ValueError: Si el servicio LLM no está configurado
+            Exception: Si falla el análisis
+        """
+        if not self.client:
+            raise ValueError(
+                "LLM service not configured. Please set OPENAI_API_KEY in environment."
+            )
+        
+        # Construir prompt
+        prompt = self._build_sentiment_analysis_prompt(
+            news_title=news_title,
+            news_currency=news_currency,
+            language=language
+        )
+        
+        try:
+            logger.info(f"Analyzing sentiment for news: '{news_title[:50]}...'")
+            
+            # Llamar a OpenAI con max_tokens bajo (solo necesitamos una palabra)
+            response: ChatCompletion = await self.client.chat.completions.create(
+                model=self.settings.openai_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self._get_sentiment_system_prompt(language)
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.3,  # Baja temperatura para respuestas más consistentes
+                max_tokens=10     # Solo necesitamos "BULLISH", "BEARISH" o "NEUTRAL"
+            )
+            
+            # Extraer sentimiento
+            sentiment_raw = response.choices[0].message.content.strip().upper()
+            tokens_used = response.usage.total_tokens if response.usage else None
+            
+            # Normalizar respuesta (el LLM podría agregar puntuación o espacios)
+            if "BULLISH" in sentiment_raw:
+                sentiment = "BULLISH"
+            elif "BEARISH" in sentiment_raw:
+                sentiment = "BEARISH"
+            else:
+                sentiment = "NEUTRAL"
+            
+            logger.info(f"Sentiment analysis result: {sentiment} (tokens: {tokens_used})")
+            
+            return sentiment
+            
+        except Exception as e:
+            logger.error(f"Error analyzing news sentiment: {str(e)}", exc_info=True)
+            # En caso de error, retornar NEUTRAL por defecto
+            logger.warning("Defaulting to NEUTRAL sentiment due to error")
+            return "NEUTRAL"
+    
+    def _get_sentiment_system_prompt(self, language: str) -> str:
+        """
+        Obtiene el system prompt para análisis de sentimiento
+        
+        Args:
+            language: Código de idioma (es, en)
+        
+        Returns:
+            str: System prompt
+        """
+        if language == "es":
+            return """Eres un analista experto de mercados financieros especializado en Gold (XAU/USD).
+
+Tu tarea es analizar el sentimiento de noticias económicas y determinar su impacto en Gold.
+
+IMPORTANTE:
+- Responde SOLO con una palabra: BULLISH, BEARISH o NEUTRAL
+- NO agregues explicaciones, puntos ni texto extra
+- BULLISH = La noticia favorece alza de Gold (ej: USD débil, risk-off, inflación alta)
+- BEARISH = La noticia favorece baja de Gold (ej: USD fuerte, risk-on, tasas altas)
+- NEUTRAL = Sin dirección clara o impacto mixto
+
+Recuerda: Gold tiene correlación INVERSA con USD. Si USD sube → Gold baja."""
+        else:  # English
+            return """You are an expert financial market analyst specialized in Gold (XAU/USD).
+
+Your task is to analyze the sentiment of economic news and determine its impact on Gold.
+
+IMPORTANT:
+- Respond with ONLY one word: BULLISH, BEARISH, or NEUTRAL
+- DO NOT add explanations, periods, or extra text
+- BULLISH = News favors Gold rise (e.g., weak USD, risk-off, high inflation)
+- BEARISH = News favors Gold decline (e.g., strong USD, risk-on, high rates)
+- NEUTRAL = No clear direction or mixed impact
+
+Remember: Gold has INVERSE correlation with USD. If USD rises → Gold falls."""
+    
+    def _build_sentiment_analysis_prompt(
+        self,
+        news_title: str,
+        news_currency: str,
+        language: str
+    ) -> str:
+        """
+        Construye el prompt para analizar sentimiento de noticia
+        
+        Args:
+            news_title: Título de la noticia
+            news_currency: Moneda del evento
+            language: Idioma
+        
+        Returns:
+            str: Prompt completo
+        """
+        if language == "es":
+            prompt = f"""Analiza el sentimiento de esta noticia económica para Gold (XAU/USD):
+
+NOTICIA: "{news_title}"
+MONEDA: {news_currency}
+
+¿Cómo afecta esta noticia a Gold?
+
+Responde SOLO: BULLISH, BEARISH o NEUTRAL"""
+        
+        else:  # English
+            prompt = f"""Analyze the sentiment of this economic news for Gold (XAU/USD):
+
+NEWS: "{news_title}"
+CURRENCY: {news_currency}
+
+How does this news affect Gold?
+
+Respond ONLY: BULLISH, BEARISH, or NEUTRAL"""
+        
+        return prompt
+    
     def _get_trade_justification_system_prompt(self, language: str) -> str:
         """
         Obtiene el system prompt para justificación de trades

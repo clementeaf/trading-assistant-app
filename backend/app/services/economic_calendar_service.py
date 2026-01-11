@@ -30,14 +30,16 @@ logger = logging.getLogger(__name__)
 class EconomicCalendarService:
     """Servicio para interactuar con APIs de calendario económico"""
 
-    def __init__(self, settings: Settings, db: Optional[Session] = None):
+    def __init__(self, settings: Settings, llm_service: Optional[LLMService] = None, db: Optional[Session] = None):
         """
         Inicializa el servicio de calendario económico
         @param settings - Configuración de la aplicación
+        @param llm_service - Servicio LLM para análisis de sentimiento (opcional)
         @param db - Sesión de base de datos (opcional)
         """
         self.settings = settings
         self.provider = self._create_provider(settings)
+        self.llm_service = llm_service
         self.db = db
         self.events_repo = EconomicEventsRepository(db) if db else None
 
@@ -183,12 +185,16 @@ class EconomicCalendarService:
     async def get_event_schedule_today(
         self,
         currency: Optional[str] = None,
-        include_gold_impact: bool = True
+        include_gold_impact: bool = True,
+        include_sentiment: bool = False,
+        sentiment_language: str = "es"
     ) -> EventScheduleResponse:
         """
         Obtiene el calendario de eventos para el día actual, formateado para mostrar horarios
         @param currency - Moneda para filtrar (opcional, por defecto USD)
         @param include_gold_impact - Si incluir estimación de impacto en Gold
+        @param include_sentiment - Si incluir análisis de sentimiento LLM (requiere OPENAI_API_KEY)
+        @param sentiment_language - Idioma para análisis de sentimiento (es, en)
         @returns Respuesta con el calendario de eventos
         """
         # Usar día hábil actual (la Fed solo opera en días hábiles)
@@ -254,6 +260,22 @@ class EconomicCalendarService:
             target_currency,
             include_gold_impact=include_gold_impact
         )
+        
+        # Analizar sentimiento con LLM si está habilitado
+        if include_sentiment and self.llm_service:
+            logger.info(f"Analyzing sentiment for {len(formatted_events)} events")
+            for event in formatted_events:
+                try:
+                    sentiment_str = await self.llm_service.analyze_news_sentiment(
+                        news_title=event.description,
+                        news_currency=event.currency,
+                        language=sentiment_language
+                    )
+                    event.sentiment = NewsSentiment(sentiment_str.lower())
+                    logger.debug(f"Event '{event.description}' sentiment: {event.sentiment}")
+                except Exception as e:
+                    logger.warning(f"Failed to analyze sentiment for '{event.description}': {str(e)}")
+                    event.sentiment = NewsSentiment.NEUTRAL  # Default fallback
 
         usd_events_count = sum(1 for event in formatted_events if event.affects_usd)
 

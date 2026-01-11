@@ -447,5 +447,175 @@ class TestGenerateTradeJustification:
             )
 
 
+class TestAnalyzeNewsSentiment:
+    """Tests de análisis de sentimiento de noticias"""
+    
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_bullish(self, settings):
+        """Test que analiza sentimiento BULLISH correctamente"""
+        service = LLMService(settings)
+        
+        # Mock respuesta LLM
+        bullish_response = ChatCompletion(
+            id="chatcmpl-sent1",
+            model="gpt-4-turbo-preview",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content="BULLISH",
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            usage=CompletionUsage(prompt_tokens=50, completion_tokens=5, total_tokens=55)
+        )
+        
+        service.client = AsyncMock()
+        service.client.chat.completions.create = AsyncMock(return_value=bullish_response)
+        
+        # Analizar sentimiento
+        sentiment = await service.analyze_news_sentiment(
+            news_title="US Dollar Weakens on Soft Jobs Report",
+            news_currency="USD",
+            language="es"
+        )
+        
+        # Validar
+        assert sentiment == "BULLISH"
+    
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_bearish(self, settings):
+        """Test que analiza sentimiento BEARISH correctamente"""
+        service = LLMService(settings)
+        
+        bearish_response = ChatCompletion(
+            id="chatcmpl-sent2",
+            model="gpt-4-turbo-preview",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content="BEARISH",
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            usage=CompletionUsage(prompt_tokens=50, completion_tokens=5, total_tokens=55)
+        )
+        
+        service.client = AsyncMock()
+        service.client.chat.completions.create = AsyncMock(return_value=bearish_response)
+        
+        sentiment = await service.analyze_news_sentiment(
+            news_title="Fed Raises Interest Rates More Than Expected",
+            news_currency="USD",
+            language="en"
+        )
+        
+        assert sentiment == "BEARISH"
+    
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_neutral(self, settings):
+        """Test que analiza sentimiento NEUTRAL correctamente"""
+        service = LLMService(settings)
+        
+        neutral_response = ChatCompletion(
+            id="chatcmpl-sent3",
+            model="gpt-4-turbo-preview",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content="NEUTRAL",
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            usage=None
+        )
+        
+        service.client = AsyncMock()
+        service.client.chat.completions.create = AsyncMock(return_value=neutral_response)
+        
+        sentiment = await service.analyze_news_sentiment(
+            news_title="ECB Maintains Current Policy",
+            news_currency="EUR"
+        )
+        
+        assert sentiment == "NEUTRAL"
+    
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_normalizes_response(self, settings):
+        """Test que normaliza respuestas con puntuación o espacios"""
+        service = LLMService(settings)
+        
+        # Respuesta con puntuación y espacios
+        messy_response = ChatCompletion(
+            id="chatcmpl-sent4",
+            model="gpt-4-turbo-preview",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content="  BULLISH.  ",  # Con espacios y punto
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            usage=None
+        )
+        
+        service.client = AsyncMock()
+        service.client.chat.completions.create = AsyncMock(return_value=messy_response)
+        
+        sentiment = await service.analyze_news_sentiment(
+            news_title="Test News",
+            news_currency="USD"
+        )
+        
+        assert sentiment == "BULLISH"
+    
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_error_defaults_neutral(self, settings):
+        """Test que retorna NEUTRAL si hay error"""
+        service = LLMService(settings)
+        
+        # Mock error en LLM
+        service.client = AsyncMock()
+        service.client.chat.completions.create = AsyncMock(side_effect=Exception("API Error"))
+        
+        sentiment = await service.analyze_news_sentiment(
+            news_title="Test News",
+            news_currency="USD"
+        )
+        
+        # Debe retornar NEUTRAL por defecto en caso de error
+        assert sentiment == "NEUTRAL"
+    
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_no_client(self, settings_no_key):
+        """Test que falla si no hay cliente configurado"""
+        service = LLMService(settings_no_key)
+        
+        with pytest.raises(ValueError, match="LLM service not configured"):
+            await service.analyze_news_sentiment(
+                news_title="Test News",
+                news_currency="USD"
+            )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

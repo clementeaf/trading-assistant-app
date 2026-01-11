@@ -18,6 +18,13 @@ class ImpactLevel(str, Enum):
     HIGH = "high"
 
 
+class NewsSentiment(str, Enum):
+    """Sentimiento de noticia para Gold"""
+    BULLISH = "bullish"      # Positivo para Gold (alza esperada)
+    BEARISH = "bearish"      # Negativo para Gold (baja esperada)
+    NEUTRAL = "neutral"      # Sin dirección clara
+
+
 class EconomicEvent(BaseModel):
     """Modelo de evento económico"""
     date: datetime = Field(..., description="Fecha y hora del evento")
@@ -68,6 +75,12 @@ class EventScheduleItem(BaseModel):
     gold_impact: Optional[GoldImpactEstimate] = Field(
         None,
         description="Estimación de impacto del evento en Gold (probabilidad, dirección, magnitud)"
+    )
+    
+    # Sentimiento de la noticia para Gold (generado por LLM)
+    sentiment: Optional[NewsSentiment] = Field(
+        None,
+        description="Sentimiento de la noticia para Gold: BULLISH (positivo), BEARISH (negativo), NEUTRAL"
     )
 
 
