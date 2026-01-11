@@ -22,6 +22,46 @@ class ReactionType(str, Enum):
     IGNORE = "ignorado"
 
 
+class TradingSession(str, Enum):
+    """Sesión de trading donde ocurrió la reacción"""
+    ASIA = "asia"
+    LONDON = "londres"
+    NEW_YORK = "nueva_york"
+    UNKNOWN = "desconocida"
+
+
+class VolatilityLevel(str, Enum):
+    """Nivel de volatilidad durante la reacción"""
+    LOW = "baja"
+    NORMAL = "normal"
+    HIGH = "alta"
+    EXTREME = "extrema"
+
+
+class LevelReaction(BaseModel):
+    """Reacción histórica individual en un nivel psicológico"""
+    date: str = Field(..., description="Fecha y hora de la reacción (ISO format)")
+    price: float = Field(..., description="Precio en el momento de la reacción")
+    type: ReactionType = Field(..., description="Tipo de reacción (rebote/ruptura)")
+    session: TradingSession = Field(..., description="Sesión de trading donde ocurrió")
+    
+    # Magnitud de la reacción
+    magnitude_points: float = Field(..., description="Magnitud de la reacción en puntos")
+    magnitude_percentage: float = Field(..., description="Magnitud de la reacción en porcentaje")
+    
+    # Contexto de volatilidad
+    volatility: VolatilityLevel = Field(..., description="Nivel de volatilidad durante la reacción")
+    atr_value: Optional[float] = Field(None, description="ATR (Average True Range) en el momento")
+    
+    # Detalles técnicos
+    was_confirmed: bool = Field(..., description="Si la reacción fue confirmada (3+ velas en dirección)")
+    candles_in_direction: int = Field(..., description="Número de velas consecutivas en la dirección")
+    
+    # Contexto adicional
+    distance_from_level: float = Field(..., description="Distancia máxima desde el nivel antes de reacción (puntos)")
+    explanation: str = Field(..., description="Explicación breve de la reacción")
+
+
 class PsychologicalLevel(BaseModel):
     """Nivel psicológico individual con su análisis"""
     level: float = Field(..., description="Precio del nivel redondo")
@@ -43,6 +83,12 @@ class PsychologicalLevel(BaseModel):
     # Contexto adicional
     is_round_hundred: bool = Field(default=False, description="Si es un nivel de 100 (ej: 4500, 4600)")
     is_round_fifty: bool = Field(default=False, description="Si es un nivel de 50 (ej: 4550, 4650)")
+    
+    # Histórico detallado de reacciones
+    reaction_history: list[LevelReaction] = Field(
+        default_factory=list,
+        description="Histórico completo de reacciones en este nivel"
+    )
 
 
 class PsychologicalLevelsResponse(BaseModel):

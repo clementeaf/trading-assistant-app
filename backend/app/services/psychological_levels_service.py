@@ -20,7 +20,7 @@ from app.providers.market_data.base_market_provider import MarketDataProvider
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
 from app.providers.market_data.mock_market_provider import MockMarketProvider
 
-logger = logging.getLogger(__name__)
+from app.utils.reaction_history_builder import ReactionHistoryBuilder
 
 
 class PsychologicalLevelsService:
@@ -207,6 +207,7 @@ class PsychologicalLevelsService:
         break_count = 0
         last_reaction_date = None
         last_reaction_type = None
+        reaction_history = []
 
         # Analizar cada vela
         for i, candle in enumerate(candles):
@@ -218,13 +219,31 @@ class PsychologicalLevelsService:
                 if candle.close > level and candle.low <= level + tolerance:
                     # Rebote alcista desde el nivel (soporte)
                     bounce_count += 1
-                    last_reaction_type = ReactionType.BOUNCE
+                    reaction_type = ReactionType.BOUNCE
+                    last_reaction_type = reaction_type
                     last_reaction_date = candle.timestamp.isoformat()
+                    
+                    # Construir reacción detallada
+                    reaction = ReactionHistoryBuilder.build_reaction(
+                        level, candles, i, reaction_type
+                    )
+                    if reaction:
+                        reaction_history.append(reaction)
+                        
                 elif candle.close < level and candle.high >= level - tolerance:
                     # Rebote bajista desde el nivel (resistencia)
                     bounce_count += 1
-                    last_reaction_type = ReactionType.BOUNCE
+                    reaction_type = ReactionType.BOUNCE
+                    last_reaction_type = reaction_type
                     last_reaction_date = candle.timestamp.isoformat()
+                    
+                    # Construir reacción detallada
+                    reaction = ReactionHistoryBuilder.build_reaction(
+                        level, candles, i, reaction_type
+                    )
+                    if reaction:
+                        reaction_history.append(reaction)
+                        
                 else:
                     # Posible ruptura
                     if i < len(candles) - 1:
@@ -234,8 +253,16 @@ class PsychologicalLevelsService:
                             candle.close > level > next_candle.close
                         ):
                             break_count += 1
-                            last_reaction_type = ReactionType.BREAK
+                            reaction_type = ReactionType.BREAK
+                            last_reaction_type = reaction_type
                             last_reaction_date = candle.timestamp.isoformat()
+                            
+                            # Construir reacción detallada
+                            reaction = ReactionHistoryBuilder.build_reaction(
+                                level, candles, i, reaction_type
+                            )
+                            if reaction:
+                                reaction_history.append(reaction)
 
         reaction_count = bounce_count + break_count
 
@@ -271,6 +298,7 @@ class PsychologicalLevelsService:
             break_count=break_count,
             is_round_hundred=is_round_hundred,
             is_round_fifty=is_round_fifty,
+            reaction_history=reaction_history
         )
 
     def _generate_summary(
