@@ -12,11 +12,13 @@ from app.db.session import get_db
 from app.models.economic_calendar import EventScheduleResponse, HighImpactNewsResponse
 from app.models.market_analysis import DailyMarketAnalysis
 from app.models.market_alignment import MarketAlignmentAnalysis
+from app.models.psychological_levels import PsychologicalLevelsResponse
 from app.models.trading_mode import TradingModeRecommendation
 from app.models.trading_recommendation import TradeRecommendation
 from app.services.economic_calendar_service import EconomicCalendarService
 from app.services.market_analysis_service import MarketAnalysisService
 from app.services.market_alignment_service import MarketAlignmentService
+from app.services.psychological_levels_service import PsychologicalLevelsService
 from app.services.trading_mode_service import TradingModeService
 from app.services.trading_advisor_service import TradingAdvisorService
 from app.services.technical_analysis_service import TechnicalAnalysisService
@@ -77,6 +79,19 @@ def get_technical_analysis_service(
     @returns Instancia del servicio de análisis técnico
     """
     return TechnicalAnalysisService(settings, db)
+
+
+def get_psychological_levels_service(
+    settings: Settings = Depends(get_settings),
+    db: Optional[Session] = Depends(get_db)
+) -> PsychologicalLevelsService:
+    """
+    Dependency para obtener el servicio de niveles psicológicos
+    @param settings - Configuración de la aplicación
+    @param db - Sesión de base de datos
+    @returns Instancia del servicio de niveles psicológicos
+    """
+    return PsychologicalLevelsService(settings, db)
 
 
 def get_trading_mode_service(
@@ -471,4 +486,69 @@ async def get_technical_analysis(
         raise HTTPException(
             status_code=500,
             detail="Error interno al obtener el análisis técnico"
+        )
+
+
+@router.get(
+    "/psychological-levels",
+    response_model=PsychologicalLevelsResponse,
+    summary="Obtiene niveles psicológicos de precio con análisis histórico",
+    description="Analiza niveles redondos cercanos al precio actual (ej: 4500, 4550) con histórico de reacciones (rebotes/rupturas) en los últimos 30 días."
+)
+async def get_psychological_levels(
+    instrument: str = Query(
+        "XAUUSD",
+        description="Instrumento a analizar (ej: XAUUSD)",
+        min_length=3,
+        max_length=10,
+        pattern="^[A-Z0-9]{3,10}$"
+    ),
+    lookback_days: int = Query(
+        30,
+        description="Días hacia atrás para analizar histórico de reacciones",
+        ge=7,
+        le=90
+    ),
+    max_distance_points: float = Query(
+        100.0,
+        description="Distancia máxima en puntos desde precio actual para considerar niveles",
+        ge=20.0,
+        le=500.0
+    ),
+    service: PsychologicalLevelsService = Depends(get_psychological_levels_service)
+) -> PsychologicalLevelsResponse:
+    """
+    Endpoint para obtener análisis de niveles psicológicos de precio.
+    @param instrument - Instrumento a analizar.
+    @param lookback_days - Días de histórico a analizar.
+    @param max_distance_points - Distancia máxima para niveles.
+    @param service - Servicio de niveles psicológicos.
+    @returns Análisis completo de niveles psicológicos cercanos.
+    """
+    try:
+        validated_instrument = InstrumentValidator.validate_instrument(instrument)
+        logger.info(
+            f"Fetching psychological levels for {validated_instrument} "
+            f"(lookback: {lookback_days} days, max distance: {max_distance_points} points)"
+        )
+        result = await service.get_psychological_levels(
+            instrument=validated_instrument,
+            lookback_days=lookback_days,
+            max_distance_points=max_distance_points
+        )
+        logger.info(
+            f"Psychological levels analysis completed for {validated_instrument}: "
+            f"{len(result.levels)} levels found"
+        )
+        return result
+    except ValueError as e:
+        logger.warning(f"Invalid parameter: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error fetching psychological levels: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno al obtener niveles psicológicos"
         )

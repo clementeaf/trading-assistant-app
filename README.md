@@ -268,6 +268,44 @@ Recomendación de modo de trading basada en reglas programadas (calma/agresivo).
 - Nivel de confianza calculado
 - Explicación detallada con motivos específicos
 
+#### GET `/api/market-briefing/psychological-levels`
+
+Analiza niveles psicológicos de precio (niveles redondos) con histórico de reacciones.
+
+**Parámetros de consulta:**
+- `instrument` (opcional): Instrumento a analizar (por defecto: XAUUSD)
+- `lookback_days` (opcional): Días hacia atrás para analizar (por defecto: 30, rango: 7-90)
+- `max_distance_points` (opcional): Distancia máxima en puntos (por defecto: 100, rango: 20-500)
+
+**Ejemplo de respuesta:**
+```json
+{
+  "instrument": "XAUUSD",
+  "current_price": 4510.50,
+  "levels": [
+    {
+      "level": 4500.0,
+      "distance_from_current": -10.50,
+      "strength": 0.80,
+      "reaction_count": 4,
+      "type": "soporte",
+      "bounce_count": 4,
+      "is_round_hundred": true
+    }
+  ],
+  "strongest_support": {...},
+  "nearest_resistance": {...},
+  "summary": "Precio actual: 4510.50. Soporte más cercano: 4500.00..."
+}
+```
+
+**Características:**
+- Detecta niveles redondos automáticamente (100s y 50s)
+- Analiza histórico de reacciones (rebotes vs rupturas)
+- Calcula fuerza del nivel basado en cantidad de rebotes
+- Identifica niveles más fuertes y más cercanos
+- Útil para estrategias de trading en niveles psicológicos
+
 ## Despliegue en AWS Lambda
 
 El proyecto está configurado para desplegarse en AWS Lambda usando AWS SAM.

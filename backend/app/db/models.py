@@ -112,3 +112,35 @@ class MarketAlignmentModel(Base):
         {"comment": "Alineaciones DXY-Bonos históricas"},
     )
 
+
+class PsychologicalLevelHistoryModel(Base):
+    """Modelo de histórico de reacciones en niveles psicológicos"""
+    __tablename__ = "psychological_levels_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    instrument = Column(String(20), nullable=False, index=True)
+    level = Column(Float, nullable=False, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    timeframe = Column(String(10), nullable=False)  # 1h, 4h, 1d, etc.
+    
+    # Tipo de reacción
+    reaction_type = Column(String(20), nullable=False)  # bounce, break, ignore
+    
+    # Datos de la vela que reaccionó
+    candle_open = Column(Float, nullable=False)
+    candle_high = Column(Float, nullable=False)
+    candle_low = Column(Float, nullable=False)
+    candle_close = Column(Float, nullable=False)
+    
+    # Patrón de vela detectado (opcional)
+    candle_pattern = Column(String(50), nullable=True)  # pin_bar, engulfing, doji, etc.
+    
+    # Fuerza de la reacción
+    reaction_strength = Column(Float, nullable=True)  # 0-1, basado en tamaño de mecha, cuerpo, etc.
+    
+    created_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        {"comment": "Histórico de reacciones del precio en niveles psicológicos"},
+    )
+
