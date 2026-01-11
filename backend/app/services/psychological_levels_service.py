@@ -18,6 +18,7 @@ from app.models.psychological_levels import (
 )
 from app.providers.market_data.base_market_provider import MarketDataProvider
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
+from app.providers.market_data.mock_market_provider import MockMarketProvider
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,8 @@ class PsychologicalLevelsService:
             if not settings.market_data_api_key:
                 raise ValueError("Twelve Data API key required")
             return TwelveDataProvider(api_key=settings.market_data_api_key)
+        elif provider_name == "mock":
+            return MockMarketProvider()
         else:
             raise ValueError(f"Provider '{provider_name}' not supported for psychological levels")
 

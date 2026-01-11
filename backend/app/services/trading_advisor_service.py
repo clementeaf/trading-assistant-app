@@ -190,6 +190,52 @@ class TradingAdvisorService:
             if h4_resistance and not resistance:
                 resistance = h4_resistance
         
+        # Calcular campos adicionales
+        risk_reward_ratio = "N/A"
+        invalid_level = None
+        
+        if entry_price and stop_loss and take_profit_1:
+            risk_reward_ratio = self._calculate_risk_reward_ratio(
+                entry_price, stop_loss, take_profit_1
+            )
+        
+        if direction != TradeDirection.WAIT and stop_loss:
+            invalid_level = self._determine_invalidation_level(direction, stop_loss)
+            
+        # Calcular desglose de confianza (estimado base + ajustes)
+        # Base técnica: 50% (tendencia diaria, soporte/resistencia)
+        tech_score = 0.5
+        if yesterday_analysis.daily_direction.value == direction.value:
+            tech_score += 0.2
+        if price_near_support and direction == TradeDirection.BUY: 
+            tech_score += 0.2
+        if price_near_resistance and direction == TradeDirection.SELL:
+            tech_score += 0.2
+            
+        # Base mercado: 30% (alineación, modo trading)
+        market_score = 0.5
+        if alignment_analysis.alignment.value == "alineados":
+            # Si está alineado con la dirección recomendada
+            if (alignment_analysis.market_bias.value == "risk-off" and direction == TradeDirection.SELL) or \
+               (alignment_analysis.market_bias.value == "risk-on" and direction == TradeDirection.BUY):
+                market_score += 0.3
+        
+        if trading_mode_rec.mode == TradingMode.AGGRESSIVE:
+            market_score += 0.1
+        elif trading_mode_rec.mode == TradingMode.CALM:
+            market_score -= 0.1
+            
+        # Base noticias: 20%
+        news_score = 0.9 if not high_impact_news.has_high_impact_news else 0.5
+        
+        # Limitar scores a 0-1
+        tech_score = min(1.0, max(0.0, tech_score))
+        market_score = min(1.0, max(0.0, market_score))
+        
+        confidence_breakdown = self._calculate_confidence_breakdown(
+            tech_score, market_score, news_score
+        )
+        
         return TradeRecommendation(
             analysis_date=analysis_date,
             analysis_datetime=analysis_datetime,
@@ -222,7 +268,11 @@ class TradingAdvisorService:
             reasons=reasons,
             summary=summary,
             detailed_explanation=detailed_explanation,
-            warnings=warnings
+            warnings=warnings,
+            disclaimer=DISCLAIMER_TEXT.strip(),
+            risk_reward_ratio=risk_reward_ratio,
+            confidence_breakdown=confidence_breakdown,
+            invalidation_level=invalid_level
         )
     
     def _calculate_support_resistance(

@@ -251,7 +251,16 @@ Recomendación de modo de trading basada en reglas programadas (calma/agresivo).
     }
   ],
   "summary": "Modo sugerido hoy: Calma.",
-  "detailed_explanation": "Modo sugerido hoy: Calma.\nMotivos:\n• NFP en 2 horas (alto impacto USD).\n• DXY y US10Y en conflicto.\n• Ayer hubo alta volatilidad en NY con rango amplio."
+  "detailed_explanation": "Modo sugerido hoy: Calma.\nMotivos:\n• NFP en 2 horas (alto impacto USD).\n• DXY y US10Y en conflicto.\n• Ayer hubo alta volatilidad en NY con rango amplio.",
+  "risk_reward_ratio": "1:2.50",
+  "invalidation_level": 2640.50,
+  "confidence_breakdown": {
+    "technical_analysis": 0.8,
+    "market_context": 0.7,
+    "news_impact": 0.5,
+    "overall": 0.67
+  },
+  "disclaimer": "Trading Assistant proporciona análisis meramente informativo..."
 }
 ```
 
@@ -265,8 +274,10 @@ Recomendación de modo de trading basada en reglas programadas (calma/agresivo).
 **Características:**
 - Sistema de reglas programables
 - Integración con noticias, análisis de ayer y alineación DXY-bonos
-- Nivel de confianza calculado
+- Nivel de confianza calculated y desglosado (Técnico, Mercado, Noticias)
+- Ratio Riesgo/Beneficio y niveles de invalidación
 - Explicación detallada con motivos específicos
+- Disclaimer legal incluido
 
 #### GET `/api/market-briefing/psychological-levels`
 

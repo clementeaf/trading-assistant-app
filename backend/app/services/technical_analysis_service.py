@@ -13,6 +13,7 @@ from app.models.market_analysis import MarketDirection, PriceCandle
 from app.providers.market_data.base_market_provider import MarketDataProvider
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
 from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
+from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.repositories.market_data_repository import MarketDataRepository
 from app.utils.business_days import BusinessDays
 from app.utils.technical_analysis import TechnicalAnalysis
@@ -58,10 +59,13 @@ class TechnicalAnalysisService:
                 )
             logger.info("Using Alpha Vantage provider for technical analysis")
             return AlphaVantageProvider(api_key=settings.market_data_api_key)
+        elif provider_name == "mock":
+            logger.info("Using Mock provider for technical analysis")
+            return MockMarketProvider()
         else:
             raise ValueError(
                 f"Unknown market data provider '{provider_name}'. "
-                "Supported providers: twelvedata, alphavantage"
+                "Supported providers: twelvedata, alphavantage, mock"
             )
     
     async def analyze_multi_timeframe(

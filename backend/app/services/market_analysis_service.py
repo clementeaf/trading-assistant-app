@@ -12,6 +12,7 @@ from app.models.market_analysis import DailyMarketAnalysis, PriceCandle, Session
 from app.providers.market_data.base_market_provider import MarketDataProvider
 from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvider
 from app.providers.market_data.twelve_data_provider import TwelveDataProvider
+from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.utils.market_analyzer import MarketAnalyzer
 from app.utils.trading_sessions import TradingSessions
 from app.utils.business_days import BusinessDays
@@ -58,10 +59,13 @@ class MarketAnalysisService:
             
             logger.info("Using Alpha Vantage provider for market data")
             return AlphaVantageProvider(api_key=settings.market_data_api_key)
+        elif provider_name == "mock":
+            logger.info("Using Mock provider for market data")
+            return MockMarketProvider()
         else:
             raise ValueError(
                 f"Unknown market data provider '{provider_name}'. "
-                "Supported providers: twelvedata, alphavantage"
+                "Supported providers: twelvedata, alphavantage, mock"
             )
     
     async def analyze_yesterday_sessions(

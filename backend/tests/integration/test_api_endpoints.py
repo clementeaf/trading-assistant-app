@@ -152,3 +152,61 @@ class TestMarketBriefingEndpoints:
         )
         assert has_nearest
 
+    def test_trading_recommendation_has_new_fields(self, client):
+        """Test que la recomendación incluye los nuevos campos"""
+        response = client.get("/api/market-briefing/trading-recommendation")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Nuevos campos
+        assert "disclaimer" in data
+        assert "risk_reward_ratio" in data
+        assert "confidence_breakdown" in data
+        assert "invalidation_level" in data
+        
+        # Validar tipos
+        assert isinstance(data["disclaimer"], str)
+        assert len(data["disclaimer"]) > 0
+        assert isinstance(data["risk_reward_ratio"], str)
+        assert isinstance(data["confidence_breakdown"], dict)
+        if data["invalidation_level"] is not None:
+            assert isinstance(data["invalidation_level"], (int, float))
+
+    def test_risk_reward_ratio_format(self, client):
+        """Test formato del risk reward ratio"""
+        response = client.get("/api/market-briefing/trading-recommendation")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        rr = data["risk_reward_ratio"]
+        # Debe ser "1:X.XX" o "N/A"
+        if rr != "N/A":
+            assert rr.startswith("1:")
+            parts = rr.split(":")
+            assert len(parts) == 2
+            try:
+                float(parts[1])
+            except ValueError:
+                pytest.fail("Risk reward ratio second part should be a number")
+
+    def test_confidence_breakdown_structure(self, client):
+        """Test estructura del desglose de confianza"""
+        response = client.get("/api/market-briefing/trading-recommendation")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        breakdown = data["confidence_breakdown"]
+        assert "technical_analysis" in breakdown
+        assert "market_context" in breakdown
+        assert "news_impact" in breakdown
+        assert "overall" in breakdown
+        
+        # Validar rangos 0-1
+        assert 0 <= breakdown["technical_analysis"] <= 1
+        assert 0 <= breakdown["market_context"] <= 1
+        assert 0 <= breakdown["news_impact"] <= 1
+        assert 0 <= breakdown["overall"] <= 1
+
