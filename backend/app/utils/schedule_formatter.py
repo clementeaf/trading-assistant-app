@@ -2,8 +2,10 @@
 Utilidades para formatear eventos en formato de calendario
 """
 from datetime import datetime
+from typing import Optional
 
 from app.models.economic_calendar import EconomicEvent, EventScheduleItem, ImpactLevel
+from app.utils.timezone_converter import TimezoneConverter
 
 
 class ScheduleFormatter:
@@ -15,11 +17,21 @@ class ScheduleFormatter:
         ImpactLevel.LOW: "Bajo impacto"
     }
     
+    # Zonas horarias por defecto a mostrar
+    DEFAULT_TIMEZONES = ["UTC", "ET", "PT"]
+    
     @classmethod
-    def format_event(cls, event: EconomicEvent) -> EventScheduleItem:
+    def format_event(
+        cls,
+        event: EconomicEvent,
+        include_timezones: bool = True,
+        timezones: Optional[list[str]] = None
+    ) -> EventScheduleItem:
         """
         Formatea un evento en formato de calendario
         @param event - Evento económico a formatear
+        @param include_timezones - Si incluir conversión de zonas horarias
+        @param timezones - Zonas a incluir (default: UTC, ET, PT)
         @returns EventScheduleItem formateado
         """
         time_str = event.date.strftime("%H:%M")
@@ -28,37 +40,70 @@ class ScheduleFormatter:
         
         full_description = f"{time_str} – {event.description} – {event.currency} – {impact_str}"
         
+        # Generar zonas horarias si se solicita
+        timezones_dict: dict[str, str] = {}
+        formatted_time: Optional[str] = None
+        
+        if include_timezones:
+            tz_list = timezones if timezones is not None else cls.DEFAULT_TIMEZONES
+            try:
+                timezones_dict = TimezoneConverter.format_multi_timezone(
+                    time_str,
+                    timezones=tz_list,
+                    reference_date=event.date
+                )
+                formatted_time = TimezoneConverter.format_time_display(timezones_dict)
+            except Exception:
+                # Si falla conversión, continuar sin timezones
+                pass
+        
         return EventScheduleItem(
             time=time_str,
             description=event.description,
             currency=event.currency,
             impact=impact_str,
             affects_usd=affects_usd,
-            full_description=full_description
+            full_description=full_description,
+            timezones=timezones_dict,
+            formatted_time=formatted_time
         )
     
     @classmethod
-    def format_events(cls, events: list[EconomicEvent]) -> list[EventScheduleItem]:
+    def format_events(
+        cls,
+        events: list[EconomicEvent],
+        include_timezones: bool = True,
+        timezones: Optional[list[str]] = None
+    ) -> list[EventScheduleItem]:
         """
         Formatea una lista de eventos
         @param events - Lista de eventos económicos
+        @param include_timezones - Si incluir conversión de zonas horarias
+        @param timezones - Zonas a incluir (default: UTC, ET, PT)
         @returns Lista de EventScheduleItem formateados
         """
-        return [cls.format_event(event) for event in events]
+        return [
+            cls.format_event(event, include_timezones, timezones)
+            for event in events
+        ]
     
     @classmethod
     def format_events_for_schedule(
         cls,
         events: list[EconomicEvent],
-        currency: str = "USD"
+        currency: str = "USD",
+        include_timezones: bool = True,
+        timezones: Optional[list[str]] = None
     ) -> list[EventScheduleItem]:
         """
         Formatea eventos para el calendario de eventos
         @param events - Lista de eventos económicos
         @param currency - Moneda para determinar si afecta USD
+        @param include_timezones - Si incluir conversión de zonas horarias
+        @param timezones - Zonas a incluir (default: UTC, ET, PT)
         @returns Lista de EventScheduleItem formateados y ordenados
         """
-        formatted = [cls.format_event(event) for event in events]
+        formatted = cls.format_events(events, include_timezones, timezones)
         # Ordenar por hora
         formatted.sort(key=lambda x: x.time)
         return formatted

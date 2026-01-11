@@ -38,12 +38,22 @@ class HighImpactNewsResponse(BaseModel):
 
 class EventScheduleItem(BaseModel):
     """Item individual del calendario de eventos"""
-    time: str = Field(..., description="Hora del evento en formato HH:MM")
+    time: str = Field(..., description="Hora del evento en formato HH:MM (UTC)")
     description: str = Field(..., description="Descripción del evento (NFP, CPI, FOMC, PMI...)")
     currency: str = Field(..., description="Moneda relacionada (USD, EUR, etc.)")
     impact: str = Field(..., description="Nivel de impacto (Alto impacto, Medio impacto, Bajo impacto)")
     affects_usd: bool = Field(..., description="Indica si el evento afecta al USD")
     full_description: str = Field(..., description="Descripción completa formateada: 'HH:MM – Descripción – Moneda – Impacto'")
+    
+    # Campos nuevos para múltiples zonas horarias
+    timezones: dict[str, str] = Field(
+        default_factory=dict,
+        description="Hora del evento en múltiples zonas horarias: {'UTC': '10:30', 'ET': '05:30', 'PT': '02:30'}"
+    )
+    formatted_time: Optional[str] = Field(
+        None,
+        description="Hora formateada para display: '10:30 UTC (05:30 ET, 02:30 PT)'"
+    )
 
 
 class EventScheduleResponse(BaseModel):
