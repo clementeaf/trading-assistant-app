@@ -19,6 +19,7 @@ from app.services.psychological_levels_service import PsychologicalLevelsService
 from app.services.llm_service import LLMService
 from app.utils.business_days import BusinessDays
 from app.utils.technical_analysis import TechnicalAnalysis
+from app.utils.multi_tf_analyzer import MultiTimeframeAnalyzer, TimeframeConvergence
 
 logger = logging.getLogger(__name__)
 
