@@ -70,4 +70,25 @@ class TradeRecommendation(BaseModel):
     
     # Advertencias
     warnings: list[str] = Field(default_factory=list, description="Advertencias importantes (noticias próximas, etc)")
+    
+    # Disclaimer legal
+    disclaimer: str = Field(
+        default="""IMPORTANTE: Esta recomendación es solo informativa y no constituye asesoramiento financiero, de inversión o trading. El trading de instrumentos financieros conlleva un alto nivel de riesgo y puede no ser adecuado para todos los inversores. Usted es el único responsable de sus decisiones de trading. Consulte con un asesor financiero profesional antes de operar. Los resultados pasados no garantizan resultados futuros.""",
+        description="Disclaimer legal - No es asesoramiento financiero"
+    )
+    
+    # Ratio riesgo/recompensa
+    risk_reward_ratio: str = Field(..., description="Ratio riesgo/recompensa en formato '1:X.XX'")
+    
+    # Desglose de confianza
+    confidence_breakdown: dict[str, float] = Field(
+        ...,
+        description="Desglose de confianza por factor (technical_analysis, market_context, news_impact, overall)"
+    )
+    
+    # Nivel de invalidación
+    invalidation_level: Optional[float] = Field(
+        None,
+        description="Nivel de precio que invalida la recomendación"
+    )
 
