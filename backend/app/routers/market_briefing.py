@@ -130,6 +130,7 @@ def get_trading_advisor_service(
     trading_mode_service: TradingModeService = Depends(get_trading_mode_service),
     economic_calendar_service: EconomicCalendarService = Depends(get_economic_calendar_service),
     technical_analysis_service: TechnicalAnalysisService = Depends(get_technical_analysis_service),
+    llm_service: LLMService = Depends(get_llm_service),
     db: Optional[Session] = Depends(get_db)
 ) -> TradingAdvisorService:
     """
@@ -139,6 +140,8 @@ def get_trading_advisor_service(
     @param market_alignment_service - Servicio de alineación de mercado
     @param trading_mode_service - Servicio de modo de trading
     @param economic_calendar_service - Servicio de calendario económico
+    @param technical_analysis_service - Servicio de análisis técnico
+    @param llm_service - Servicio LLM
     @param db - Sesión de base de datos
     @returns Instancia del servicio de asesoramiento de trading
     """
@@ -149,6 +152,7 @@ def get_trading_advisor_service(
         trading_mode_service,
         economic_calendar_service,
         technical_analysis_service,
+        llm_service,
         db
     )
 
@@ -450,7 +454,7 @@ async def get_trading_mode_recommendation(
     "/trading-recommendation",
     response_model=TradeRecommendation,
     summary="Obtiene recomendación completa de trading con niveles de precio",
-    description="Genera una recomendación de operativa (compra/venta/esperar) con niveles de entrada, stop loss y take profit basado en análisis técnico y fundamental."
+    description="Genera una recomendación de operativa (compra/venta/esperar) con niveles de entrada, stop loss y take profit basado en análisis técnico y fundamental. Opcionalmente incluye justificación generada por LLM."
 )
 async def get_trading_recommendation(
     instrument: str = Query(
@@ -473,6 +477,15 @@ async def get_trading_recommendation(
         ge=30,
         le=360
     ),
+    include_llm_justification: bool = Query(
+        False,
+        description="Si incluir justificación detallada generada por LLM (requiere OPENAI_API_KEY configurada)"
+    ),
+    language: str = Query(
+        "es",
+        description="Idioma para justificación LLM (es, en)",
+        pattern="^(es|en)$"
+    ),
     service: TradingAdvisorService = Depends(get_trading_advisor_service)
 ) -> TradeRecommendation:
     """
@@ -480,6 +493,8 @@ async def get_trading_recommendation(
     @param instrument - Instrumento principal a analizar.
     @param bond - Símbolo del bono para el análisis de alineación.
     @param time_window_minutes - Ventana de tiempo para noticias próximas.
+    @param include_llm_justification - Si incluir justificación LLM (opcional).
+    @param language - Idioma para justificación LLM (es, en).
     @param service - Servicio de asesoramiento de trading.
     @returns Recomendación de trading con niveles de precio.
     """
@@ -490,9 +505,11 @@ async def get_trading_recommendation(
         result = await service.get_trading_recommendation(
             instrument=validated_instrument,
             bond_symbol=validated_bond,
-            time_window_minutes=time_window_minutes
+            time_window_minutes=time_window_minutes,
+            include_llm_justification=include_llm_justification,
+            language=language
         )
-        logger.info(f"Trading recommendation: {result.direction} (confidence: {result.confidence})")
+        logger.info(f"Trading recommendation: {result.direction} (confidence: {result.confidence}, LLM: {include_llm_justification})")
         return result
     except ValueError as e:
         logger.warning(f"Invalid parameter: {str(e)}")

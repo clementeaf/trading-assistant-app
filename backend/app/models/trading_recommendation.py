@@ -85,6 +85,12 @@ class TradeRecommendation(BaseModel):
     summary: str = Field(..., description="Resumen de la recomendación")
     detailed_explanation: str = Field(..., description="Explicación detallada con análisis")
     
+    # Justificación generada por LLM (opcional, solo si está habilitado)
+    llm_justification: Optional[str] = Field(
+        None,
+        description="Justificación detallada en lenguaje natural generada por LLM (100-150 palabras). Explica por qué BUY/SELL/WAIT considerando contexto completo."
+    )
+    
     # Advertencias
     warnings: list[str] = Field(default_factory=list, description="Advertencias importantes (noticias próximas, etc)")
     

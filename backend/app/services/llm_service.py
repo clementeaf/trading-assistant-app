@@ -126,6 +126,238 @@ class LLMService:
             logger.error(f"Error generating daily summary: {str(e)}", exc_info=True)
             raise Exception(f"Failed to generate daily summary: {str(e)}")
     
+    async def generate_trade_justification(
+        self,
+        direction: str,
+        entry_price: float,
+        stop_loss: float,
+        take_profit: float,
+        current_price: float,
+        confidence: float,
+        market_context: str,
+        trading_mode: str,
+        reasons: list[str],
+        technical_summary: str,
+        news_impact: str,
+        language: str = "es"
+    ) -> str:
+        """
+        Genera justificación detallada de una recomendación de trade usando LLM
+        
+        Args:
+            direction: Dirección del trade (BUY, SELL, WAIT)
+            entry_price: Precio de entrada recomendado
+            stop_loss: Stop loss
+            take_profit: Take profit
+            current_price: Precio actual
+            confidence: Nivel de confianza (0-1)
+            market_context: Contexto de mercado (RISK_ON, RISK_OFF, etc)
+            trading_mode: Modo de trading (CALM, AGGRESSIVE, OBSERVE)
+            reasons: Lista de razones principales
+            technical_summary: Resumen técnico (EMAs, RSI, estructura)
+            news_impact: Impacto de noticias esperado
+            language: Idioma (es, en)
+        
+        Returns:
+            str: Justificación en lenguaje natural (100-150 palabras)
+        
+        Raises:
+            ValueError: Si el servicio LLM no está configurado
+            Exception: Si falla la generación
+        """
+        if not self.client:
+            raise ValueError(
+                "LLM service not configured. Please set OPENAI_API_KEY in environment."
+            )
+        
+        # Construir prompt
+        prompt = self._build_trade_justification_prompt(
+            direction=direction,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            current_price=current_price,
+            confidence=confidence,
+            market_context=market_context,
+            trading_mode=trading_mode,
+            reasons=reasons,
+            technical_summary=technical_summary,
+            news_impact=news_impact,
+            language=language
+        )
+        
+        try:
+            logger.info(f"Generating trade justification ({direction}) with {self.settings.openai_model}")
+            
+            # Llamar a OpenAI
+            response: ChatCompletion = await self.client.chat.completions.create(
+                model=self.settings.openai_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self._get_trade_justification_system_prompt(language)
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=self.settings.openai_temperature,
+                max_tokens=250  # ~100-150 palabras
+            )
+            
+            # Extraer justificación
+            justification = response.choices[0].message.content.strip()
+            tokens_used = response.usage.total_tokens if response.usage else None
+            
+            logger.info(f"Trade justification generated (tokens: {tokens_used})")
+            
+            return justification
+            
+        except Exception as e:
+            logger.error(f"Error generating trade justification: {str(e)}", exc_info=True)
+            raise Exception(f"Failed to generate trade justification: {str(e)}")
+    
+    def _get_trade_justification_system_prompt(self, language: str) -> str:
+        """
+        Obtiene el system prompt para justificación de trades
+        
+        Args:
+            language: Código de idioma (es, en)
+        
+        Returns:
+            str: System prompt
+        """
+        if language == "es":
+            return """Eres un analista experto de trading especializado en Gold (XAU/USD).
+
+Tu tarea es justificar recomendaciones de trading (BUY/SELL/WAIT) de forma clara y profesional.
+
+IMPORTANTE:
+- Usa lenguaje directo y específico
+- Explica POR QUÉ esta recomendación tiene sentido
+- Menciona factores clave: técnico, fundamental, contexto macro
+- Sé honesto sobre riesgos y limitaciones
+- 100-150 palabras (conciso pero completo)
+- NO uses formato JSON, solo texto natural
+
+Estructura sugerida:
+1. Decisión principal y por qué (30-40 palabras)
+2. Factores técnicos que la soportan (30-40 palabras)
+3. Contexto fundamental/macro relevante (30-40 palabras)
+4. Consideración de riesgos (20-30 palabras)"""
+        else:  # English
+            return """You are an expert trading analyst specialized in Gold (XAU/USD).
+
+Your task is to justify trading recommendations (BUY/SELL/WAIT) clearly and professionally.
+
+IMPORTANT:
+- Use direct, specific language
+- Explain WHY this recommendation makes sense
+- Mention key factors: technical, fundamental, macro context
+- Be honest about risks and limitations
+- 100-150 words (concise but complete)
+- NO JSON format, only natural text
+
+Suggested structure:
+1. Main decision and why (30-40 words)
+2. Technical factors supporting it (30-40 words)
+3. Relevant fundamental/macro context (30-40 words)
+4. Risk considerations (20-30 words)"""
+    
+    def _build_trade_justification_prompt(
+        self,
+        direction: str,
+        entry_price: float,
+        stop_loss: float,
+        take_profit: float,
+        current_price: float,
+        confidence: float,
+        market_context: str,
+        trading_mode: str,
+        reasons: list[str],
+        technical_summary: str,
+        news_impact: str,
+        language: str
+    ) -> str:
+        """
+        Construye el prompt para justificar un trade
+        
+        Args:
+            direction: Dirección del trade
+            entry_price: Precio de entrada
+            stop_loss: Stop loss
+            take_profit: Take profit
+            current_price: Precio actual
+            confidence: Confianza (0-1)
+            market_context: Contexto de mercado
+            trading_mode: Modo de trading
+            reasons: Lista de razones
+            technical_summary: Resumen técnico
+            news_impact: Impacto de noticias
+            language: Idioma
+        
+        Returns:
+            str: Prompt completo
+        """
+        if language == "es":
+            prompt = f"""Justifica esta recomendación de trading para Gold (XAU/USD):
+
+RECOMENDACIÓN:
+- Dirección: {direction}
+- Entrada: ${entry_price:.2f}
+- Stop Loss: ${stop_loss:.2f}
+- Take Profit: ${take_profit:.2f}
+- Precio actual: ${current_price:.2f}
+- Confianza: {confidence*100:.0f}%
+
+CONTEXTO DE MERCADO:
+- Sesgo macro: {market_context}
+- Modo de trading: {trading_mode}
+- Impacto de noticias: {news_impact}
+
+ANÁLISIS TÉCNICO:
+{technical_summary}
+
+RAZONES PRINCIPALES:
+{chr(10).join(f'- {r}' for r in reasons)}
+
+INSTRUCCIONES:
+Escribe un párrafo de 100-150 palabras explicando por qué esta recomendación tiene sentido.
+Menciona los factores más relevantes (técnico, fundamental, contexto).
+Sé honesto sobre limitaciones y riesgos.
+Usa lenguaje directo y profesional."""
+        
+        else:  # English
+            prompt = f"""Justify this trading recommendation for Gold (XAU/USD):
+
+RECOMMENDATION:
+- Direction: {direction}
+- Entry: ${entry_price:.2f}
+- Stop Loss: ${stop_loss:.2f}
+- Take Profit: ${take_profit:.2f}
+- Current price: ${current_price:.2f}
+- Confidence: {confidence*100:.0f}%
+
+MARKET CONTEXT:
+- Macro bias: {market_context}
+- Trading mode: {trading_mode}
+- News impact: {news_impact}
+
+TECHNICAL ANALYSIS:
+{technical_summary}
+
+MAIN REASONS:
+{chr(10).join(f'- {r}' for r in reasons)}
+
+INSTRUCTIONS:
+Write a 100-150 word paragraph explaining why this recommendation makes sense.
+Mention the most relevant factors (technical, fundamental, context).
+Be honest about limitations and risks.
+Use direct, professional language."""
+        
+        return prompt
+    
     def _get_system_prompt(self, language: str) -> str:
         """
         Obtiene el system prompt según el idioma

@@ -24,6 +24,7 @@ from app.services.market_alignment_service import MarketAlignmentService
 from app.services.market_analysis_service import MarketAnalysisService
 from app.services.trading_mode_service import TradingModeService
 from app.services.technical_analysis_service import TechnicalAnalysisService
+from app.services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ class TradingAdvisorService:
         trading_mode_service: TradingModeService,
         economic_calendar_service: EconomicCalendarService,
         technical_analysis_service: Optional[TechnicalAnalysisService] = None,
+        llm_service: Optional[LLMService] = None,
         db: Optional[Session] = None
     ):
         """
@@ -73,6 +75,7 @@ class TradingAdvisorService:
         @param trading_mode_service - Servicio de modo de trading
         @param economic_calendar_service - Servicio de calendario económico
         @param technical_analysis_service - Servicio de análisis técnico avanzado (opcional)
+        @param llm_service - Servicio LLM para justificaciones (opcional)
         @param db - Sesión de base de datos (opcional)
         """
         self.settings = settings
@@ -81,19 +84,24 @@ class TradingAdvisorService:
         self.trading_mode_service = trading_mode_service
         self.economic_calendar_service = economic_calendar_service
         self.technical_analysis_service = technical_analysis_service
+        self.llm_service = llm_service
         self.db = db
     
     async def get_trading_recommendation(
         self,
         instrument: str = "XAUUSD",
         bond_symbol: str = "US10Y",
-        time_window_minutes: int = 120
+        time_window_minutes: int = 120,
+        include_llm_justification: bool = False,
+        language: str = "es"
     ) -> TradeRecommendation:
         """
         Obtiene recomendación completa de trading con niveles de precio
         @param instrument - Instrumento a analizar (por defecto XAUUSD)
         @param bond_symbol - Símbolo del bono para análisis
         @param time_window_minutes - Ventana de tiempo para noticias próximas
+        @param include_llm_justification - Si incluir justificación generada por LLM (opcional, requiere OPENAI_API_KEY)
+        @param language - Idioma para justificación LLM (es, en)
         @returns Recomendación de trading con niveles
         """
         logger.info(f"Generating trading recommendation for {instrument}")
@@ -262,6 +270,43 @@ class TradingAdvisorService:
             tech_score, market_score, news_score
         )
         
+        # Generar justificación con LLM si está habilitado
+        llm_justification = None
+        if include_llm_justification and self.llm_service:
+            try:
+                logger.info("Generating LLM justification for trade recommendation")
+                
+                # Preparar resumen técnico para LLM
+                technical_summary = f"""Tendencia Daily: {daily_trend}, H4: {h4_trend}, H1: {h1_trend}
+RSI H4: {h4_rsi:.1f if h4_rsi else 'N/A'} (zona {h4_rsi_zone if h4_rsi_zone else 'N/A'})
+Soporte: ${support:.2f if support else 0}, Resistencia: ${resistance:.2f if resistance else 0}
+Estructura: {'Cerca de soporte' if price_near_support else 'Cerca de resistencia' if price_near_resistance else 'Rango medio'}"""
+                
+                # Determinar impacto de noticias
+                news_impact_text = "Alto" if len(warnings) > 0 else "Bajo"
+                if len(warnings) > 0:
+                    news_impact_text += f" ({len(warnings)} noticias próximas)"
+                
+                llm_justification = await self.llm_service.generate_trade_justification(
+                    direction=direction.value,
+                    entry_price=entry_price if entry_price else current_price,
+                    stop_loss=stop_loss if stop_loss else 0,
+                    take_profit=take_profit_1 if take_profit_1 else 0,
+                    current_price=current_price,
+                    confidence=confidence,
+                    market_context=alignment_analysis.market_bias.value,
+                    trading_mode=trading_mode_rec.mode.value,
+                    reasons=reasons,
+                    technical_summary=technical_summary,
+                    news_impact=news_impact_text,
+                    language=language
+                )
+                
+                logger.info("LLM justification generated successfully")
+            except Exception as e:
+                logger.warning(f"Failed to generate LLM justification: {str(e)}")
+                # No falla si el LLM falla, simplemente no incluye justificación
+        
         return TradeRecommendation(
             disclaimer=DISCLAIMER_TEXT.strip(),
             analysis_date=analysis_date,
@@ -295,6 +340,7 @@ class TradingAdvisorService:
             reasons=reasons,
             summary=summary,
             detailed_explanation=detailed_explanation,
+            llm_justification=llm_justification,
             warnings=warnings,
             risk_reward_ratio=risk_reward_ratio,
             risk_reward_details=risk_reward_details,

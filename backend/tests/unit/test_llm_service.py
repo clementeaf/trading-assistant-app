@@ -282,3 +282,170 @@ class TestPromptBuilding:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestGenerateTradeJustification:
+    """Tests de generación de justificación de trades"""
+    
+    @pytest.mark.asyncio
+    async def test_generate_trade_justification_buy(self, settings, mock_llm_response):
+        """Test que genera justificación para BUY exitosamente"""
+        service = LLMService(settings)
+        
+        # Mock respuesta LLM para justificación
+        justification_response = ChatCompletion(
+            id="chatcmpl-456",
+            model="gpt-4-turbo-preview",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content="Recomendamos comprar Gold en $4500 con objetivo en $4550 y stop en $4480. El análisis técnico muestra tendencia alcista en H4 con RSI en zona neutral, mientras el contexto macro es risk-off favorable para el metal precioso. La correlación negativa con DXY (-0.78) soporta esta dirección. El ratio riesgo/recompensa de 1:2.5 es atractivo. Principales riesgos: NFP en 2 horas podría generar volatilidad. Modo CALM sugiere entrar solo en niveles clave.",
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            usage=CompletionUsage(prompt_tokens=200, completion_tokens=100, total_tokens=300)
+        )
+        
+        service.client = AsyncMock()
+        service.client.chat.completions.create = AsyncMock(return_value=justification_response)
+        
+        # Generar justificación
+        justification = await service.generate_trade_justification(
+            direction="BUY",
+            entry_price=4500.0,
+            stop_loss=4480.0,
+            take_profit=4550.0,
+            current_price=4510.0,
+            confidence=0.75,
+            market_context="RISK_OFF",
+            trading_mode="CALM",
+            reasons=["Tendencia alcista H4", "RSI neutral", "Risk-off favorece Gold"],
+            technical_summary="H4: Alcista, RSI: 55",
+            news_impact="Alto (NFP en 2 horas)",
+            language="es"
+        )
+        
+        # Validar resultado
+        assert "comprar" in justification.lower() or "buy" in justification.lower()
+        assert "gold" in justification.lower()
+        assert "4500" in justification
+        assert "risk" in justification.lower() or "riesgo" in justification.lower()
+        assert len(justification) > 50  # Debe ser un párrafo sustancial
+    
+    @pytest.mark.asyncio
+    async def test_generate_trade_justification_wait(self, settings):
+        """Test que genera justificación para WAIT"""
+        service = LLMService(settings)
+        
+        wait_response = ChatCompletion(
+            id="chatcmpl-789",
+            model="gpt-4-turbo-preview",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content="Se recomienda esperar fuera del mercado. El precio está en zona de indecisión sin dirección clara, con RSI neutral en 50 y estructura lateral. El contexto macro es mixto sin sesgo definido. Además, hay NFP en 30 minutos que generará alta volatilidad. El modo OBSERVE refuerza esta recomendación. Esperar confirmación post-noticia antes de entrar.",
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            usage=None
+        )
+        
+        service.client = AsyncMock()
+        service.client.chat.completions.create = AsyncMock(return_value=wait_response)
+        
+        justification = await service.generate_trade_justification(
+            direction="WAIT",
+            entry_price=0,
+            stop_loss=0,
+            take_profit=0,
+            current_price=4510.0,
+            confidence=0.40,
+            market_context="MIXED",
+            trading_mode="OBSERVE",
+            reasons=["Estructura lateral", "Noticias en 30 min", "Sin sesgo claro"],
+            technical_summary="RSI: 50, Estructura: Lateral",
+            news_impact="Muy alto (NFP en 30 min)",
+            language="es"
+        )
+        
+        assert "esperar" in justification.lower() or "wait" in justification.lower()
+        assert "nfp" in justification.lower()
+    
+    @pytest.mark.asyncio
+    async def test_generate_trade_justification_english(self, settings):
+        """Test generación en inglés"""
+        service = LLMService(settings)
+        
+        english_response = ChatCompletion(
+            id="chatcmpl-abc",
+            model="gpt-4-turbo-preview",
+            object="chat.completion",
+            created=1234567890,
+            choices=[
+                Choice(
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        content="Buy Gold at $4500 targeting $4550 with stop at $4480. H4 shows bullish trend with RSI at 55 (neutral). Risk-off macro context supports Gold as safe haven. Strong negative DXY correlation (-0.78) adds conviction. R:R of 1:2.5 is attractive. Main risk: NFP in 2 hours could spike volatility. CALM mode suggests entering only at key levels.",
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            usage=CompletionUsage(prompt_tokens=200, completion_tokens=100, total_tokens=300)
+        )
+        
+        service.client = AsyncMock()
+        service.client.chat.completions.create = AsyncMock(return_value=english_response)
+        
+        justification = await service.generate_trade_justification(
+            direction="BUY",
+            entry_price=4500.0,
+            stop_loss=4480.0,
+            take_profit=4550.0,
+            current_price=4510.0,
+            confidence=0.75,
+            market_context="RISK_OFF",
+            trading_mode="CALM",
+            reasons=["H4 bullish", "RSI neutral"],
+            technical_summary="H4: Bullish",
+            news_impact="High (NFP soon)",
+            language="en"
+        )
+        
+        assert "buy" in justification.lower()
+        assert "gold" in justification.lower()
+        assert "risk" in justification.lower()
+    
+    @pytest.mark.asyncio
+    async def test_generate_trade_justification_no_client(self, settings_no_key):
+        """Test que falla si no hay cliente configurado"""
+        service = LLMService(settings_no_key)
+        
+        with pytest.raises(ValueError, match="LLM service not configured"):
+            await service.generate_trade_justification(
+                direction="BUY",
+                entry_price=4500.0,
+                stop_loss=4480.0,
+                take_profit=4550.0,
+                current_price=4510.0,
+                confidence=0.75,
+                market_context="RISK_OFF",
+                trading_mode="CALM",
+                reasons=["Test"],
+                technical_summary="Test",
+                news_impact="Test"
+            )
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
