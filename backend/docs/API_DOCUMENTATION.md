@@ -49,6 +49,76 @@ Para producción, se recomienda implementar:
 
 ## Endpoints
 
+### 0. Daily Summary (Resumen Ejecutivo Diario) 🆕 **LLM-Powered**
+
+**GET** `/api/market-briefing/daily-summary`
+
+Genera un resumen ejecutivo diario del mercado en lenguaje natural usando GPT-4. Combina análisis de noticias, técnico, fundamental y macro en un texto legible de 200-300 palabras.
+
+**Query Parameters**:
+| Param | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `instrument` | string | No | XAUUSD | Instrumento a analizar (ej: XAUUSD) |
+| `language` | string | No | es | Idioma del resumen (es, en) |
+| `detail_level` | string | No | standard | Nivel de detalle (brief, standard, detailed) |
+
+**Response 200**:
+```json
+{
+  "summary": "Gold cerró ayer en $4510 con ligera alza (+0.5%), reflejando el sesgo risk-off del mercado. Hoy tenemos 2 noticias de alto impacto, incluyendo NFP a las 08:30 ET que típicamente genera alta volatilidad en el oro. La correlación Gold-DXY se mantiene fuerte (-0.78), indicando que movimientos del dólar afectarán inversamente al metal precioso. El modo de trading recomendado es CALM: operar solo en niveles clave con stops ajustados. Niveles a vigilar: soporte fuerte en 4500 (10 rebotes históricos), resistencia en 4550. El sesgo direccional es neutral-alcista con probabilidad moderada (65%), esperando el resultado del NFP para tomar posiciones.",
+  "key_points": [
+    "NFP hoy a las 08:30 ET - alta volatilidad esperada",
+    "DXY y bonos alineados risk-off, favorece Gold como refugio",
+    "Correlación Gold-DXY negativa fuerte (-0.78)",
+    "Soporte clave en 4500 con 10 rebotes en 30 días",
+    "Modo CALM: solo tradear en niveles con R:R mínimo 1:2"
+  ],
+  "market_sentiment": "NEUTRAL",
+  "recommended_action": "TRADE_CAUTIOUSLY",
+  "confidence_level": 0.65,
+  "context": {
+    "high_impact_news_count": 2,
+    "geopolitical_risk_level": "MEDIUM",
+    "market_bias": "RISK_OFF",
+    "trading_mode": "CALM",
+    "gold_dxy_correlation": -0.78
+  },
+  "generated_at": "2026-01-11T15:30:00Z",
+  "model_used": "gpt-4-turbo-preview",
+  "tokens_used": 450
+}
+```
+
+**Use Cases**:
+- **Pre-market briefing**: Leer resumen antes de abrir posiciones
+- **Mid-day update**: Generar resumen actualizado durante la sesión
+- **Mobile notifications**: Texto legible para push notifications
+- **Email digest**: Enviar resumen diario por correo
+- **Onboarding**: Traders nuevos entienden el contexto rápidamente
+
+**Ventajas vs otros endpoints**:
+- 📝 **Lenguaje natural**: Fácil de leer, no requiere interpretación técnica
+- 🤖 **LLM-powered**: Usa GPT-4 para generar texto contextual
+- 🌍 **Multiidioma**: Español e inglés
+- 🎯 **Conciso**: 200-300 palabras vs múltiples endpoints
+- 💡 **Accionable**: Incluye recomendación operativa clara
+
+**Configuración requerida**:
+```bash
+# .env
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4-turbo-preview
+OPENAI_MAX_TOKENS=500
+OPENAI_TEMPERATURE=0.7
+```
+
+**Costos estimados**:
+- GPT-4-turbo: ~$0.01-0.03 por resumen (dependiendo de tokens)
+- GPT-4o: ~$0.005-0.015 por resumen
+- GPT-3.5-turbo: ~$0.001-0.003 por resumen
+
+---
+
 ### 1. High Impact News
 
 **GET** `/api/market-briefing/high-impact-news`
@@ -627,6 +697,29 @@ Detección de niveles psicológicos (100s y 50s) con histórico detallado de rea
 ---
 
 ## Ejemplos de Uso
+
+### Workflow Simplificado con Daily Summary 🆕 **LLM-Powered**
+
+```bash
+# Opción A: Resumen ejecutivo completo en un solo endpoint
+curl 'http://localhost:8000/api/market-briefing/daily-summary?language=es&detail_level=standard' | jq
+# Output: Resumen de 250 palabras + key_points + recomendación
+
+# Beneficios:
+# ✅ 1 llamada vs 5-6 llamadas
+# ✅ Texto legible vs JSON técnico
+# ✅ Contexto completo en segundos
+```
+
+**Ejemplo de output**:
+```json
+{
+  "summary": "Gold cerró ayer en $4510 con ligera alza (+0.5%)...",
+  "key_points": ["NFP hoy 08:30", "Risk-off favorece Gold", "Soporte en 4500"],
+  "market_sentiment": "NEUTRAL",
+  "recommended_action": "TRADE_CAUTIOUSLY"
+}
+```
 
 ### Workflow Completo para Decidir un Trade
 
