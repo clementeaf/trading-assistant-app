@@ -1,12 +1,12 @@
 # FASE 3 - PROGRESO ACTUAL
 
-**Fecha**: 11 Enero 2026  
-**Estado**: 60% Completada (3/5 tareas)  
-**Próximo paso**: Completar Tarea 4 (Detección de Patrones Complejos)
+**Fecha**: 11 Enero 2026 (Actualizado)  
+**Estado**: 70% Completada (3.5/5 tareas)  
+**Próximo paso**: Completar integración de Tarea 4 (Patrones Complejos)
 
 ---
 
-## ✅ Tareas Completadas (3/5)
+## ✅ Tareas Completadas (3/5) + 1 Parcial
 
 ### Tarea 1: Resumen Ejecutivo Diario ✅
 **Archivo**: `FASE3_TAREA1_COMPLETADA.md`
@@ -104,48 +104,41 @@ GET /api/market-briefing/event-schedule?include_sentiment=true&sentiment_languag
 
 ## 🔄 Tarea en Progreso (4/5)
 
-### Tarea 4: Detección de Patrones Complejos 🔄
-**Estado**: Modelo creado, falta implementación
+### Tarea 4: Detección de Patrones Complejos 🔄 (70% completada)
+**Estado**: LLMService implementado, falta integración completa
 
-**Ya completado**:
+**Ya completado** ✅:
 - ✅ Modelo `PatternAnalysis` creado (`app/models/pattern_analysis.py`)
-- ✅ Enums: `PatternType`, `PatternStatus`, `PatternBias`
-- ✅ Commit del modelo pendiente
+- ✅ Enums: `PatternType` (15+ patrones), `PatternStatus`, `PatternBias`
+- ✅ `LLMService.detect_complex_patterns()` implementado
+- ✅ System prompts optimizados (es/en)
+- ✅ Prompts con datos OHLCV
+- ✅ Error handling (retorna "none" si falla)
+- ✅ `TechnicalAnalysisService` constructor actualizado con `llm_service`
+- ✅ Commit: `fd9806f`
 
-**Falta por hacer**:
-1. Crear `LLMService.detect_complex_patterns()`
-   - System prompt para análisis de patrones
-   - Prompt con datos OHLCV recientes
-   - Parsear respuesta JSON del LLM
-   - Error handling
+**Falta por hacer** ⏳:
+1. ⏳ Integrar `detect_complex_patterns` en método principal de `TechnicalAnalysisService`
+   - Agregar campo `pattern_analysis` a response model
+   - Llamar al LLM si `include_pattern_detection=true`
+   - Convertir dict a `PatternAnalysis` model
 
-2. Integrar en `TechnicalAnalysisService`
-   - Agregar `llm_service` al constructor
-   - Agregar `pattern_analysis` a la respuesta
-   - Parámetro `include_pattern_detection`
-
-3. Actualizar endpoint `/technical-analysis`
-   - Query param: `include_pattern_detection` (bool)
+2. ⏳ Actualizar endpoint `/technical-analysis`
+   - Query param: `include_pattern_detection` (bool, default: false)
+   - Query param: `pattern_language` (es|en, default: "es")
    - Inyectar `llm_service` en dependency
 
-4. Tests unitarios
-   - Mock respuestas LLM para cada patrón
-   - Test error handling
-   - Test normalización de respuesta
+3. ⏳ Tests unitarios
+   - Test detección de cada tipo de patrón
+   - Test error handling (LLM falla → "none")
+   - Test normalización de respuesta JSON
+   - Estimado: 5-6 tests
 
-5. Documentación y commit
+4. ⏳ Documentación
+   - Actualizar API_DOCUMENTATION.md
+   - Crear FASE3_TAREA4_COMPLETADA.md
 
-**Patrones a detectar**:
-- Head & Shoulders / Inverse H&S
-- Double Top / Double Bottom
-- Triple Top / Triple Bottom
-- Triangles (Ascending, Descending, Symmetrical)
-- Wedges (Rising, Falling)
-- Flag, Pennant
-- Cup and Handle
-- Rounding Bottom
-
-**Tiempo estimado**: ~1.5-2 horas
+**Tiempo estimado restante**: 1-1.5 horas
 
 ---
 
