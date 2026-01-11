@@ -14,11 +14,14 @@ from app.models.market_analysis import DailyMarketAnalysis
 from app.models.trading_mode import (
     TradingMode,
     TradingModeReason,
-    TradingModeRecommendation
+    TradingModeRecommendation,
+    OperationalLevel,
+    LevelType
 )
 from app.services.economic_calendar_service import EconomicCalendarService
 from app.services.market_alignment_service import MarketAlignmentService
 from app.services.market_analysis_service import MarketAnalysisService
+from app.utils.psychological_level_detector import PsychologicalLevelDetector
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +50,7 @@ class TradingModeService:
         self.market_analysis_service = market_analysis_service
         self.market_alignment_service = market_alignment_service
         self.db = db
+        self.level_detector = PsychologicalLevelDetector()
     
     async def get_trading_mode_recommendation(
         self,
@@ -152,6 +156,13 @@ class TradingModeService:
         # Ordenar razones por prioridad
         reasons.sort(key=lambda r: r.priority, reverse=True)
         
+        # Calcular niveles operativos según el modo
+        operational_levels = await self._calculate_operational_levels(
+            mode=final_mode,
+            instrument=instrument,
+            yesterday_analysis=yesterday_analysis
+        )
+        
         # Generar resumen y explicación detallada
         summary, detailed_explanation = self._generate_summary(
             final_mode, reasons, upcoming_news, alignment_analysis, yesterday_analysis
@@ -162,7 +173,8 @@ class TradingModeService:
             confidence=round(confidence, 2),
             reasons=reasons,
             summary=summary,
-            detailed_explanation=detailed_explanation
+            detailed_explanation=detailed_explanation,
+            operational_levels=operational_levels
         )
         
         # Guardar recomendación en base de datos si está disponible
