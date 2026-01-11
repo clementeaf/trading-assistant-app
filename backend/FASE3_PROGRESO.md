@@ -1,12 +1,12 @@
 # FASE 3 - PROGRESO ACTUAL
 
-**Fecha**: 11 Enero 2026 (Actualizado)  
-**Estado**: 70% Completada (3.5/5 tareas)  
-**Próximo paso**: Completar integración de Tarea 4 (Patrones Complejos)
+**Fecha**: 11 Enero 2026 (Actualizado - Tarea 4 completada)  
+**Estado**: 80% Completada (4/5 tareas)  
+**Próximo paso**: Tarea 5 - Q&A Chat Assistant
 
 ---
 
-## ✅ Tareas Completadas (3/5) + 1 Parcial
+## ✅ Tareas Completadas (4/5)
 
 ### Tarea 1: Resumen Ejecutivo Diario ✅
 **Archivo**: `FASE3_TAREA1_COMPLETADA.md`
@@ -102,47 +102,43 @@ GET /api/market-briefing/event-schedule?include_sentiment=true&sentiment_languag
 
 ---
 
-## 🔄 Tarea en Progreso (4/5)
+---
 
-### Tarea 4: Detección de Patrones Complejos 🔄 (70% completada)
-**Estado**: LLMService implementado, falta integración completa
+### Tarea 4: Detección de Patrones Complejos ✅
+**Archivo**: `FASE3_TAREA4_COMPLETADA.md`
 
-**Ya completado** ✅:
-- ✅ Modelo `PatternAnalysis` creado (`app/models/pattern_analysis.py`)
-- ✅ Enums: `PatternType` (15+ patrones), `PatternStatus`, `PatternBias`
-- ✅ `LLMService.detect_complex_patterns()` implementado
-- ✅ System prompts optimizados (es/en)
-- ✅ Prompts con datos OHLCV
-- ✅ Error handling (retorna "none" si falla)
-- ✅ `TechnicalAnalysisService` constructor actualizado con `llm_service`
-- ✅ Commit: `fd9806f`
+**Implementado**:
+- Modelo: `PatternAnalysis` (15+ patrones)
+- Servicio: `LLMService.detect_complex_patterns()`
+- Servicio: `TechnicalAnalysisService` con detección de patrones
+- Endpoint: `GET /api/market-briefing/technical-analysis` actualizado
+- Query params: `include_pattern_detection`, `pattern_language`
+- Tests: 10 tests unitarios ✅
 
-**Falta por hacer** ⏳:
-1. ⏳ Integrar `detect_complex_patterns` en método principal de `TechnicalAnalysisService`
-   - Agregar campo `pattern_analysis` a response model
-   - Llamar al LLM si `include_pattern_detection=true`
-   - Convertir dict a `PatternAnalysis` model
+**Características**:
+- 15+ patrones técnicos detectables (H&S, Double Top/Bottom, Triangles, Wedges, etc)
+- Multiidioma (es/en)
+- System prompts optimizados
+- Error handling robusto (retorna "none" si falla)
+- Opcional (default: false)
+- Costo: ~$0.0001-0.0002/detección
 
-2. ⏳ Actualizar endpoint `/technical-analysis`
-   - Query param: `include_pattern_detection` (bool, default: false)
-   - Query param: `pattern_language` (es|en, default: "es")
-   - Inyectar `llm_service` en dependency
+**Uso**:
+```bash
+GET /api/market-briefing/technical-analysis?include_pattern_detection=true&pattern_language=es
+```
 
-3. ⏳ Tests unitarios
-   - Test detección de cada tipo de patrón
-   - Test error handling (LLM falla → "none")
-   - Test normalización de respuesta JSON
-   - Estimado: 5-6 tests
-
-4. ⏳ Documentación
-   - Actualizar API_DOCUMENTATION.md
-   - Crear FASE3_TAREA4_COMPLETADA.md
-
-**Tiempo estimado restante**: 1-1.5 horas
+**Patrones detectables**:
+- Head & Shoulders / Inverse H&S
+- Double Top / Double Bottom
+- Triple Top / Triple Bottom
+- Ascending/Descending/Symmetrical Triangle
+- Rising/Falling Wedge
+- Flag, Pennant, Cup and Handle
 
 ---
 
-## ⏳ Tarea Pendiente (5/5)
+## 🔄 Tarea Pendiente (5/5)
 
 ### Tarea 5: Q&A Chat Assistant
 **Estado**: No iniciada

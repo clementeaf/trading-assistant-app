@@ -16,6 +16,7 @@ from app.providers.market_data.alpha_vantage_provider import AlphaVantageProvide
 from app.providers.market_data.mock_market_provider import MockMarketProvider
 from app.repositories.market_data_repository import MarketDataRepository
 from app.services.psychological_levels_service import PsychologicalLevelsService
+from app.services.llm_service import LLMService
 from app.utils.business_days import BusinessDays
 from app.utils.technical_analysis import TechnicalAnalysis
 
@@ -81,14 +82,18 @@ class TechnicalAnalysisService:
     
     async def analyze_multi_timeframe(
         self,
-        instrument: str = "XAUUSD"
+        instrument: str = "XAUUSD",
+        include_pattern_detection: bool = False,
+        pattern_language: str = "es"
     ) -> dict:
         """
         Realiza análisis técnico en múltiples temporalidades (Daily, H4, H1)
         @param instrument - Instrumento a analizar
+        @param include_pattern_detection - Si se debe detectar patrones complejos con LLM
+        @param pattern_language - Idioma para descripción de patrones (es, en)
         @returns Diccionario con análisis de cada timeframe
         """
-        logger.info(f"Starting multi-timeframe analysis for {instrument}")
+        logger.info(f"Starting multi-timeframe analysis for {instrument} (patterns={include_pattern_detection})")
         
         # Obtener último día hábil
         today = datetime.now().date()
@@ -186,6 +191,67 @@ class TechnicalAnalysisService:
         
         logger.info(f"Returning {len(chart_candles_data)} chart candles")
         
+        # Detección de patrones complejos con LLM (opcional)
+        pattern_analysis = None
+        if include_pattern_detection and self.llm_service:
+            try:
+                logger.info("Starting complex pattern detection with LLM")
+                
+                # Usar velas H4 para análisis de patrones (mejor balance entre detalle y contexto)
+                pattern_candles = []
+                current_price = 0.0
+                pattern_timeframe = "H4"
+                
+                if h4_candles and len(h4_candles) > 0:
+                    sorted_h4 = sorted(h4_candles, key=lambda c: c.timestamp)
+                    pattern_candles_source = sorted_h4[-100:]  # Últimas 100 velas H4 para contexto
+                    pattern_candles = [
+                        {
+                            "open": c.open,
+                            "high": c.high,
+                            "low": c.low,
+                            "close": c.close,
+                            "timestamp": c.timestamp.isoformat()
+                        }
+                        for c in pattern_candles_source
+                    ]
+                    current_price = sorted_h4[-1].close
+                    pattern_timeframe = "H4"
+                elif daily_candles and len(daily_candles) > 0:
+                    # Fallback a Daily si no hay H4
+                    sorted_daily = sorted(daily_candles, key=lambda c: c.timestamp)
+                    pattern_candles_source = sorted_daily[-50:]
+                    pattern_candles = [
+                        {
+                            "open": c.open,
+                            "high": c.high,
+                            "low": c.low,
+                            "close": c.close,
+                            "timestamp": c.timestamp.isoformat()
+                        }
+                        for c in pattern_candles_source
+                    ]
+                    current_price = sorted_daily[-1].close
+                    pattern_timeframe = "Daily"
+                
+                if pattern_candles:
+                    pattern_data = await self.llm_service.detect_complex_patterns(
+                        price_data=pattern_candles,
+                        timeframe=pattern_timeframe,
+                        current_price=current_price,
+                        language=pattern_language
+                    )
+                    pattern_analysis = pattern_data
+                    logger.info(f"Pattern detection completed: {pattern_data.get('pattern_type', 'none')}")
+                else:
+                    logger.warning("No candles available for pattern detection")
+            except Exception as e:
+                logger.error(f"Error detecting patterns: {str(e)}", exc_info=True)
+                # No fallar el endpoint completo si falla la detección de patrones
+                pattern_analysis = None
+        elif include_pattern_detection and not self.llm_service:
+            logger.warning("Pattern detection requested but LLM service not configured")
+        
         return {
             "instrument": instrument,
             "analysis_date": last_business_day.isoformat(),
@@ -193,7 +259,8 @@ class TechnicalAnalysisService:
             "h4": h4_analysis,
             "h1": h1_analysis,
             "summary": summary,
-            "chart_candles": chart_candles_data
+            "chart_candles": chart_candles_data,
+            "pattern_analysis": pattern_analysis
         }
     
     async def _get_candles_with_cache(

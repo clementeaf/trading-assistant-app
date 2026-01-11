@@ -88,16 +88,18 @@ def get_psychological_levels_service(
 def get_technical_analysis_service(
     settings: Settings = Depends(get_settings),
     db: Optional[Session] = Depends(get_db),
-    psychological_levels_service: PsychologicalLevelsService = Depends(get_psychological_levels_service)
+    psychological_levels_service: PsychologicalLevelsService = Depends(get_psychological_levels_service),
+    llm_service: LLMService = Depends(get_llm_service)
 ) -> TechnicalAnalysisService:
     """
     Dependency para obtener el servicio de análisis técnico avanzado
     @param settings - Configuración de la aplicación
     @param db - Sesión de base de datos
     @param psychological_levels_service - Servicio de niveles psicológicos
+    @param llm_service - Servicio LLM para detección de patrones
     @returns Instancia del servicio de análisis técnico
     """
-    return TechnicalAnalysisService(settings, db, psychological_levels_service)
+    return TechnicalAnalysisService(settings, db, psychological_levels_service, llm_service)
 
 
 def get_trading_mode_service(
@@ -542,7 +544,7 @@ async def get_trading_recommendation(
 @router.get(
     "/technical-analysis",
     summary="Obtiene análisis técnico avanzado multi-temporalidad (Daily, H4, H1)",
-    description="Analiza tendencias, RSI, estructura de precio y soporte/resistencia en múltiples timeframes."
+    description="Analiza tendencias, RSI, estructura de precio y soporte/resistencia en múltiples timeframes. Opcionalmente detecta patrones complejos con LLM."
 )
 async def get_technical_analysis(
     instrument: str = Query(
@@ -552,18 +554,33 @@ async def get_technical_analysis(
         max_length=10,
         pattern="^[A-Z0-9]{3,10}$"
     ),
+    include_pattern_detection: bool = Query(
+        False,
+        description="Si se debe detectar patrones técnicos complejos con LLM (Head & Shoulders, Double Top/Bottom, etc.)"
+    ),
+    pattern_language: str = Query(
+        "es",
+        description="Idioma para descripción de patrones (es, en)",
+        pattern="^(es|en)$"
+    ),
     service: TechnicalAnalysisService = Depends(get_technical_analysis_service)
 ) -> dict:
     """
     Endpoint para obtener análisis técnico avanzado multi-temporalidad.
     @param instrument - Instrumento a analizar.
+    @param include_pattern_detection - Si se debe detectar patrones complejos.
+    @param pattern_language - Idioma para descripción de patrones.
     @param service - Servicio de análisis técnico.
-    @returns Análisis técnico en Daily, H4 y H1.
+    @returns Análisis técnico en Daily, H4 y H1, con patrones opcionales.
     """
     try:
         validated_instrument = InstrumentValidator.validate_instrument(instrument)
-        logger.info(f"Fetching technical analysis for {validated_instrument}")
-        result = await service.analyze_multi_timeframe(instrument=validated_instrument)
+        logger.info(f"Fetching technical analysis for {validated_instrument} (patterns={include_pattern_detection})")
+        result = await service.analyze_multi_timeframe(
+            instrument=validated_instrument,
+            include_pattern_detection=include_pattern_detection,
+            pattern_language=pattern_language
+        )
         logger.info(f"Technical analysis completed for {validated_instrument}")
         return result
     except ValueError as e:
